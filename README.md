@@ -1,4 +1,4 @@
-# Azure Data Explorer Query Utility
+# Azure Data Explorer (ADX) Query Utility
 
 This utility allows you to execute queries against an Azure Data Explorer (ADX) database and output the results in various formats directly to stdout. The script is written in Python and uses the `azure-kusto-data` package to interact with the ADX cluster.
 
@@ -68,10 +68,12 @@ python k2json.py --queryFile "/path/to/query/file" --database "name-of-database-
 
 > **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
 
-## Test Azure Data Explorer
+## Test ADX Cluster
 
 This script can be tested against the free and public Help cluster provided by Microsoft.
 The URL of that cluster is `https://help.kusto.windows.net`.
+This cluster is available to all.
+Although you'll still need to log in with the Azure CLI, this cluster accepts connections from anyone.
 
 A database in that cluster is called **FindMyPartner**,
 and it has a table called **Partner** that can be queried with the following query:
