@@ -2,6 +2,12 @@
 
 This utility allows you to execute queries against an Azure Data Explorer (ADX) database and output the results in various formats directly to stdout. The script is written in Python and uses the `azure-kusto-data` package to interact with the ADX cluster.
 
+## Motivation
+
+This utility is a simple and short demonstration of using the Azure Python SDK for querying data from ADX.
+
+A much better and far more complete option is the Kusto CLI available at https://learn.microsoft.com/en-us/azure/data-explorer/kusto/tools/kusto-cli. 
+
 ## Authentication
 
 This script authenticates using the Azure CLI. You must be logged in to the Azure CLI with an account that has access to the Azure Data Explorer cluster you are querying.
