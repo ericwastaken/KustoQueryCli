@@ -1,0 +1,6 @@
+// Query the Partner table
+Partner
+// Project specific columns
+| project Partner, PartnerType, Website, Contact, Logo
+// Limit the number of results
+| limit 10
