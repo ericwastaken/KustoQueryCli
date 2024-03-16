@@ -73,7 +73,8 @@ python k2json.py --queryFile "/path/to/query/file" --database "name-of-database-
 This script can be tested against the free and public Help cluster provided by Microsoft.
 The URL of that cluster is `https://help.kusto.windows.net`.
 
-A database in that cluster is called **FindMyPartner** and it has a table called **Partner** that can be queried with:
+A database in that cluster is called **FindMyPartner**,
+and it has a table called **Partner** that can be queried with the following query:
 
 ```text
 Partner
