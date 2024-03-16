@@ -14,7 +14,7 @@ def execute_adx_query(adx_url, database_name, query):
     Returns:
     - DataFrame: The query results.
     """
-    # Assuming managed identity for simplicity; replace with relevant auth method.
+    # For simplicity in this code, we're using Azure CLI authentication.
     kcsb = KustoConnectionStringBuilder.with_az_cli_authentication(adx_url)
 
     # Create a Kusto client
