@@ -60,10 +60,10 @@ Then navigate to the script's directory in your terminal or command prompt and r
 
 ```bash
 # Output to CSV
-python k2csv.py --inputQuery "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+python k2csv.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 
 # Output to JSON
-python k2json.py --inputQuery "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+python k2json.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
 > **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
@@ -80,3 +80,10 @@ Partner
 | project Partner, PartnerType, Website, Contact, Logo 
 | limit 10
 ```
+
+To run this command against the Help cluster, use the following command:
+
+```bash
+python k2json.py --queryFile "examples/find-my-partner-simple-query.kql" --database "FindMyPartner" --adxUrl "https://help.kusto.windows.net"
+```
+
