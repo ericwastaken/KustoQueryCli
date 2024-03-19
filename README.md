@@ -16,6 +16,9 @@ This script authenticates using the Azure CLI. You must be logged in to the Azur
 
 Before you begin, ensure you have Python installed on your system. This script was developed with Python 3.8, but it should work with Python 3.6 and above. You also need `pip` for installing Python packages.
 
+Under Windows, it's possible to install Python and pip from the Microsoft Store. Open the Microsoft Store 
+and search for Python. Install the latest version of Python 3.
+
 ## Setup
 
 To set up your environment to run the script, follow these steps:
@@ -27,17 +30,17 @@ To set up your environment to run the script, follow these steps:
 2. **Configure a Python Virtual Environment**
    Navigate to the root of the project directory and run the following commands:
 
-   **macOS/Linux**  
+   **macOS / Linux / Windows with WSL**  
    ```bash
    python3 -m venv ./venv
    source ./venv/bin/activate
    ```
    
-    **Windows**  
-    ```cmd
-    python -m venv venv
-    venv\Scripts\activate.bat
-    ```
+   **Windows**  
+   ```cmd
+   python -m venv venv
+   .\venv\Scripts\activate
+   ```
 
 3. **Install dependencies**  
    Navigate to the directory containing `requirements.txt` and run the following command:  
@@ -47,7 +50,15 @@ To set up your environment to run the script, follow these steps:
 4. **Install the Azure CLI**
    Install the Azure CLI for your environment. Instructions here: https://learn.microsoft.com/en-us/cli/azure/
 
+### Problems getting this to run under Windows?
+
+If you're having trouble getting the script to run under Windows, you could try running under Windows Subsystem for 
+Linux (WSL). This is a feature of Windows that allows you to run a Linux environment directly on Windows. You can 
+install WSL by following the instructions here: https://docs.microsoft.com/en-us/windows/wsl/install.
+
 ## Usage
+
+### Step 1: Authenticate with the Azure CLI
 
 To use the script, first authenticate using the Azure Cli
 ```bash
@@ -56,14 +67,41 @@ az login
 
 Login with an account that has access to the Azure Data Explorer cluster you want to query.
 
-Then navigate to the script's directory in your terminal or command prompt and run the command that corresponds to the output format you want:
+### Step 2: Activate the Python Virtual Environment
 
+Navigate to the script's directory in your terminal or command prompt and activate the Python virtual environment 
+you created earlier. You only need to do this once per terminal window or command prompt.
+
+**macOS / Linux / Windows with WSL**  
+```bash
+source ./venv/bin/activate
+```
+
+**Windows**  
+```cmd
+.\venv\Scripts\activate
+```
+
+### Step 3: Run the Script
+
+Still in the script's directory in your terminal or command prompt, run the command that corresponds to the output 
+format you want:
+
+**macOS / Linux / Windows with WSL**  
 ```bash
 # Output to CSV
 python k2csv.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 
 # Output to JSON
 python k2json.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+```
+
+**Windows**  
+```cmd
+# Output to CSV
+python k2csv.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+# Output to JSON
+python k2json.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
 > **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
