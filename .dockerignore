@@ -1,0 +1,9 @@
+# Ignore Everything
+*
+
+# Except these items
+!k2csv.py
+!k2json.py
+!entrypoint.sh
+!requirements.txt
+!lib/

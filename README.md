@@ -15,7 +15,12 @@ A much better and far more complete option is the Kusto CLI available at https:/
 This script authenticates using the Azure CLI. You must be logged in to the Azure CLI with an account that has access 
 to the Azure Data Explorer cluster you are querying.
 
-## Prerequisites
+## Native Installation
+
+If you wish to run the script natively on your machine, you can follow the instructions below. If you prefer to run
+the script in a Docker container, see the next section.
+
+### Prerequisites
 
 Before you begin, ensure you have Python installed on your system. This script was developed with Python 3.8, but it 
 should work with Python 3.6 and above. You also need `pip` for installing Python packages.
@@ -33,7 +38,7 @@ Homebrew. See https://docs.brew.sh/Homebrew-and-Python for instructions.
 Under Windows, it's possible to install Python and pip from the Microsoft Store. Open the Microsoft Store 
 and search for Python. Install the latest version of Python 3.
 
-## Setup
+### Setup
 
 To set up your environment to run the script, follow these steps:
 
@@ -66,18 +71,18 @@ To set up your environment to run the script, follow these steps:
 4. **Install the Azure CLI**
    Install the Azure CLI for your environment. Instructions here: https://learn.microsoft.com/en-us/cli/azure/
 
-### Problems getting this tool to run under Windows?
+#### Problems getting this tool to run under Windows natively?
 
 If you're having trouble getting the script to run under Windows, you could try running under Windows Subsystem for 
 Linux (WSL). This is a feature of Windows that allows you to run a Linux environment directly on Windows. You can 
 install WSL by following the instructions here: https://docs.microsoft.com/en-us/windows/wsl/install. Form within WSL,
 you can follow the instructions above for macOS and Linux.
 
-## Usage
+### Usage
 
 Using this script is simple but requires a few steps.
 
-### Step 1: Authenticate with the Azure CLI
+#### Step 1: Authenticate with the Azure CLI
 
 To use the script, first authenticate using the Azure Cli
 ```bash
@@ -86,7 +91,7 @@ az login
 
 Login with an account that has access to the Azure Data Explorer cluster you want to query.
 
-### Step 2: Activate the Python Virtual Environment
+#### Step 2: Activate the Python Virtual Environment
 
 Navigate to the script's directory in your terminal or command prompt and activate the Python virtual environment 
 you created earlier. You only need to do this once per terminal window or command prompt.
@@ -101,7 +106,7 @@ source ./venv/bin/activate
 .\venv\Scripts\activate
 ```
 
-### Step 3: Run the Script
+#### Step 3: Run the Script
 
 Still in the script's directory in your terminal or command prompt, run the command that corresponds to the output 
 format you want:
@@ -138,6 +143,97 @@ python k2csv.py --queryFile "/path/to/query/file" --database "name-of-database-t
 python k2csv.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>" > output.csv
 ```
 
+## Running in a Docker Container
+
+If you prefer to run the script in a Docker container, you can use the provided `Dockerfile` to build an image and
+run a container. This is a good option if you don't want to install Python and the Azure CLI on your machine.
+
+### Prerequisites
+
+Before you begin, ensure you have Docker installed on your system. You can download Docker Desktop from
+https://www.docker.com/products/docker-desktop.
+
+### Building the Docker Image
+
+To build the Docker image, navigate to the root of the project directory in your terminal or command prompt and run the
+following command:
+
+**macOS / Linux / Windows with WSL**  
+```bash
+docker compose build
+```
+
+**Windows**  
+```cmd
+docker compose build
+```
+
+### Running the Scripts via the Docker Container
+
+#### Step 1: Authenticate with the Azure CLI
+
+To use the script, first authenticate using the Azure Cli
+
+```bash
+docker compose run -rm kusto-query-cli az login
+```
+
+Login with an account that has access to the Azure Data Explorer cluster you want to query. 
+
+Authentication will be persisted in the Docker container using a Docker volume. This means you only need to authenticate
+once per container (until the volume is removed or your credentials expire).
+
+To force dropping the active login:
+
+```bash
+docker compose run -rm kusto-query-cli az logout
+```
+
+You can also force the container to forget your credentials by removing the volume. To do this, run the 
+following command:
+
+```bash
+docker compose down --volumes
+```
+
+#### Step 2: Run the Script
+
+> **Note:** For the docker version, all queries you run must be placed in the **./queries** directory. The script 
+> will look for the query file in that directory exclusively!
+
+To run the script via the Docker container, use the following command:
+
+**macOS / Linux / Windows with WSL**  
+```bash
+# JSON
+docker compose run -rm kusto-query-cli python k2json.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+# CSV
+docker compose run -rm kusto-query-cli python k2csv.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+```
+
+**Windows**  
+```cmd
+# JSON
+docker compose run -rm kusto-query-cli python k2json.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+ CSV
+docker compose run -rm kusto-query-cli python k2csv.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+```
+
+> **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
+
+The output of the script will be printed to the terminal. If you would like to save the output to a file, you can
+redirect the output to a file using the `>` operator. For example:
+
+**macOS / Linux / Windows with WSL**  
+```bash
+docker compose run -rm kusto-query-cli python k2json.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>" > output.csv
+```
+
+**Windows**  
+```cmd
+docker compose run -rm kusto-query-cli python k2json.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>" > output.csv
+```
+
 ## Test ADX Cluster
 
 This script can be tested against the free and public Help cluster provided by Microsoft.
@@ -157,6 +253,6 @@ Partner
 To run this command against the Help cluster, use the following command:
 
 ```bash
-python k2json.py --queryFile "examples/find-my-partner-simple-query.kql" --database "FindMyPartner" --adxUrl "https://help.kusto.windows.net"
+python k2json.py --queryFile "./queries/example-find-my-partner-simple-query.kql" --database "FindMyPartner" --adxUrl "https://help.kusto.windows.net"
 ```
 

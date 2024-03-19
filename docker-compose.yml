@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  kusto-query-cli:
+    build: .
+    image: kusto-query-cli:1.0.0
+    volumes:
+      - type: bind
+        source: ./queries
+        target: /usr/src/app/queries
+      - type: volume
+        source: docker-azure-state
+        target: /root/.azure
+    entrypoint: ["/usr/src/app/entrypoint.sh"]
+volumes:
+    docker-azure-state:
