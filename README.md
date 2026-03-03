@@ -128,7 +128,8 @@ python k2csv.py --queryFile "C:\path\to\query\file" --database "name-of-database
 python k2json.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
-> **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
+> **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs 
+  within a reasonable time of each other should be faster.
 
 When the script runs, it will output the results of the query to the terminal in the format you specified. If you would 
 like to save the output to a file, you can redirect the output to a file using the `>` operator. For example:
@@ -168,14 +169,41 @@ docker compose build
 docker compose build
 ```
 
+### Azure Authentication
+
+If your account is associated with multiple tenants, the Azure CLI will prompt you to select the correct subscription and tenant after logging in. 
+
+For example:
+
+```text
+No     Subscription name         Subscription ID                       Tenant
+-----  ------------------------  ------------------------------------  --------
+[1] *  contoso-dev-subscription  8a3b2c1d-4e5f-6g7h-8i9j-0k1l2m3n4o5p  contoso
+[2]    contoso-prod-subscription 1b2c3d4e-5f6g-7h8i-9j0k-1l2m3n4o5p6q  contoso
+[3]    fabrikam-dev-subscription 3c4d5e6f-7h8i-9j0k-1l2m-3n4o5p6q7r8s  fabrikam
+[4]    fabrikam-prod-subscription 5e6f7g8h-9i0j-1k2l-3m4n-5o6p7q8r9s0t  fabrikam
+
+The default is marked with an *; the default tenant is 'contoso' and subscription is 'contoso-dev-subscription' (8a3b2c1d-4e5f-6g7h-8i9j-0k1l2m3n4o5p).
+
+Select a subscription and tenant (Type a number or Enter for no changes): 4
+```
+
+Selecting the correct subscription and tenant ensures that the scripts have the necessary permissions to access the Azure Data Explorer cluster.
+
 ### Running the Scripts via the Docker Container
 
 #### Step 1: Authenticate with the Azure CLI
 
 To use the script, first authenticate using the Azure Cli
 
+**macOS / Linux / Windows with WSL**
 ```bash
-docker compose run -rm kusto-query-cli az login
+./docker-run.sh az login
+```
+
+**Windows**
+```cmd
+docker-run.bat az login
 ```
 
 Login with an account that has access to the Azure Data Explorer cluster you want to query. 
@@ -185,15 +213,27 @@ once per container (until the volume is removed or your credentials expire).
 
 To force dropping the active login:
 
+**macOS / Linux / Windows with WSL**
 ```bash
-docker compose run -rm kusto-query-cli az logout
+./docker-run.sh az logout
+```
+
+**Windows**
+```cmd
+docker-run.bat az logout
 ```
 
 You can also force the container to forget your credentials by removing the volume. To do this, run the 
 following command:
 
+**macOS / Linux / Windows with WSL**
 ```bash
-docker compose down --volumes
+./docker-run.sh down --volumes
+```
+
+**Windows**
+```cmd
+docker-run.bat down --volumes
 ```
 
 #### Step 2: Run the Script
@@ -206,20 +246,46 @@ To run the script via the Docker container, use the following command:
 **macOS / Linux / Windows with WSL**  
 ```bash
 # JSON
-docker compose run -rm kusto-query-cli python k2json.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+./docker-run.sh python k2json.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 # CSV
-docker compose run -rm kusto-query-cli python k2csv.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+./docker-run.sh python k2csv.py --queryFile "./queries/query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
 **Windows**  
 ```cmd
 # JSON
-docker compose run -rm kusto-query-cli python k2json.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
- CSV
-docker compose run -rm kusto-query-cli python k2csv.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+docker-run.bat python k2json.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+# CSV
+docker-run.bat python k2csv.py --queryFile ".\queries\query-file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
-> **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs within a reasonable time of each other should be faster.
+### Using a SOCKS Proxy
+
+If you need to connect through a SOCKS proxy, you can use the following arguments:
+
+*   `--use-socks5 <host>:<port>`: Specify the SOCKS5 proxy server.
+*   `--use-socks5-dns`: (Optional) Use the proxy for DNS resolution. This is recommended if your local machine cannot 
+    resolve the ADX cluster address (equivalent to using `socks5h://`).
+
+**Example with SOCKS5 proxy:**
+```bash
+python k2json.py --queryFile "./queries/query.kql" --database "my_db" --adxUrl "https://mycluster.kusto.windows.net" --use-socks5 localhost:1080 --use-socks5-dns
+```
+
+#### Azure CLI Login and Proxies
+
+The `az login` command requires opening a browser for authentication.
+*   If your browser is not configured to use the same proxy, the authentication might fail.
+*   In such cases, you can open the URL provided your phone or another computer with network access to the cluster network:
+    ```bash
+    az login --use-device-code
+    ```
+*   Alternatively, ensure your browser is configured to use the proxy or has access to the Microsoft login endpoints required 
+    for your ADX cluster. The Firefox browser is known to work with easily with a proxy. In Firefox, open settings then search 
+    for "proxy" and set the proxy to "Manual proxy configuration" to the SOCKS5 server address and port.
+
+> **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent 
+  runs within a reasonable time of each other should be faster.
 
 The output of the script will be printed to the terminal. If you would like to save the output to a file, you can
 redirect the output to a file using the `>` operator. For example:
@@ -237,8 +303,7 @@ docker compose run -rm kusto-query-cli python k2json.py --queryFile ".\queries\q
 ## Test ADX Cluster
 
 This script can be tested against the free and public Help cluster provided by Microsoft.
-The URL of that cluster is `https://help.kusto.windows.net`.
-This cluster is available to all.
+The URL of that cluster is `https://help.kusto.windows.net`.  This cluster is available to all.
 Although you'll still need to log in with the Azure CLI, this cluster accepts connections from anyone.
 
 A database in that cluster is called **FindMyPartner**,

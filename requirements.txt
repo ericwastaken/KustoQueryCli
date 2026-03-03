@@ -1,2 +1,3 @@
-azure-kusto-data>=2.2.0
-pandas>=1.1.5
+azure-kusto-data>=6.0.2
+pandas>=3.0.1
+PySocks>=1.7.1

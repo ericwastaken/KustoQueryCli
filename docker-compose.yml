@@ -1,8 +1,7 @@
-version: '3.8'
 services:
   kusto-query-cli:
     build: .
-    image: kusto-query-cli:1.0.0
+    image: kusto-query-cli:1.1.0
     volumes:
       - type: bind
         source: ./queries
