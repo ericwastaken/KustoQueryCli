@@ -45,6 +45,9 @@ def check_azure_cli_logged_in():
 
 
 def is_azure_cli_installed(os_name):
+    """
+    Checks if the Azure CLI ('az') is installed and available in the system path.
+    """
     try:
         # Command to check Azure CLI version
         command = "az --version"

@@ -11,9 +11,24 @@ SERVICE_NAME="kusto-query-cli"
 # Function to check if the Docker image exists
 image_exists() {
   local image_tag
-  # Extract image tag from docker-compose.yml (line 4: image: kusto-query-cli:1.1.0)
-  # We look for the 'image:' key under the service 'kusto-query-cli:'
-  image_tag=$(sed -n '/kusto-query-cli:/,/image:/p' docker-compose.yml | grep 'image:' | awk '{print $2}')
+  # Extract image tag from local .env file
+  ENV_FILE="$(dirname "$0")/.env"
+  
+  if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: .env file not found at $ENV_FILE" >&2
+    echo "The .env file must exist and contain KUSTO_QUERY_CLI_VERSION variable." >&2
+    exit 1
+  fi
+  
+  KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
+  
+  if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
+    echo "Error: KUSTO_QUERY_CLI_VERSION not set in $ENV_FILE" >&2
+    echo "Please add KUSTO_QUERY_CLI_VERSION=<version> to your .env file." >&2
+    exit 1
+  fi
+  
+  image_tag="kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}"
   
   if [ -z "$image_tag" ]; then
     return 1 # Cannot determine tag, force build

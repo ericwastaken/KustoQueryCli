@@ -1,6 +1,11 @@
 from azure.kusto.data import KustoClient, KustoConnectionStringBuilder
 from azure.kusto.data.helpers import dataframe_from_result_table
 
+"""
+lib/KustoHandler.py: Helper functions for executing KQL queries using the Azure Kusto SDK.
+Uses Azure CLI authentication to connect to Azure Data Explorer (ADX) clusters.
+"""
+
 
 def execute_adx_query(adx_url, database_name, query):
     """

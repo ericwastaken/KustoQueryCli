@@ -4,7 +4,24 @@ setlocal enabledelayedexpansion
 :::: docker-mcp.bat: A wrapper for running the MCP wrapper inside Docker.
 :::: This script reads from stdin and pipes it to 'python mcp.py' inside the container.
 
-set IMAGE_TAG=kusto-query-cli:1.1.0
+set ENV_FILE=%~dp0.env
+
+if not exist "%ENV_FILE%" (
+    echo Error: .env file not found at %ENV_FILE% >&2
+    echo The .env file must exist and contain KUSTO_QUERY_CLI_VERSION variable. >&2
+    exit /b 1
+)
+
+set KUSTO_QUERY_CLI_VERSION=
+for /f "tokens=2 delims==" %%a in ('findstr /R "^KUSTO_QUERY_CLI_VERSION=" "%ENV_FILE%"') do set KUSTO_QUERY_CLI_VERSION=%%a
+
+if "%KUSTO_QUERY_CLI_VERSION%"=="" (
+    echo Error: KUSTO_QUERY_CLI_VERSION not set in %ENV_FILE% >&2
+    echo Please add KUSTO_QUERY_CLI_VERSION=^<version^> to your .env file. >&2
+    exit /b 1
+)
+
+set IMAGE_TAG=kusto-query-cli:%KUSTO_QUERY_CLI_VERSION%
 set MCP_CONTAINER_NAME=kusto-query-cli-mcp
 set AZURE_STATE_VOLUME=%MCP_CONTAINER_NAME%-azure-state
 

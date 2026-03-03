@@ -23,19 +23,50 @@ Initiates or verifies Azure CLI authentication.
 - **Behavior**:
     - If already authenticated, returns current subscription and tenant details.
     - If not authenticated, initiates a device code login flow and returns the `verification_url` and `device_code`. 
-    - In Docker environments, the login process runs in the background for up to 120 seconds to allow for completion and 
+    - In a Docker-for-MCP environment, the login process runs in the background for up to 120 seconds to allow for completion and 
       automated subscription selection.
+    - In a Docker Compose environment, the azure login waits interactively for the Azure login confirmation.
 - **Response**: Standard JSON envelope with `authenticated` status and either account info or device login details.
 
 ### `LOGOUT`
 Logs out from the current Azure CLI session.
 - **Request**: `{"action": "LOGOUT"}`
+- **Behavior**: Clears the Azure CLI session and removes the local subscription cache.
 - **Response**: Standard JSON envelope with `logged_out: true` or an error if the logout process failed.
 
 ### `AUTH_STATUS`
 Checks the current authentication status.
 - **Request**: `{"action": "AUTH_STATUS"}`
 - **Response**: Returns `authenticated: true` with account details or `authenticated: false`.
+
+### `LIST_SUBSCRIPTIONS`
+Returns the list of available Azure subscriptions.
+- **Request**:
+  ```json
+  {
+    "action": "LIST_SUBSCRIPTIONS",
+    "params": {
+      "subscription_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    }
+  }
+  ```
+- **Parameters**:
+    - `subscription_id` (string, optional): If provided and not authenticated, this subscription will be targeted 
+      during the resulting login flow.
+- **Behavior**:
+    - If already authenticated, returns a cached list of enabled subscriptions.
+    - If not authenticated, initiates a device code login flow (same as `LOGIN`).
+- **Response**: Standard JSON envelope with a list of subscription objects in `data.subscriptions`.
+  Example subscription object:
+  ```json
+  {
+    "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "name": "My Subscription",
+    "tenant_id": "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
+    "is_default": true,
+    "state": "Enabled"
+  }
+  ```
 
 ### `QUERY`
 Executes a Kusto query against a specific cluster and database.
@@ -87,10 +118,15 @@ All responses follow this structure:
 
 - **`AZ_CLI_NOT_FOUND`**: Azure CLI is not installed in the environment.
 - **`AZ_NOT_AUTHENTICATED`**: Action requires authentication, but the user is not logged in.
-- **`AZ_TOKEN_EXPIRED`**: The Azure CLI token has expired.
+- **`AZ_LOGIN_FAILED`**: The Azure CLI login process failed to start or provide a device code.
+- **`AZ_LOGOUT_FAILED`**: The logout process failed (e.g., no active session).
+- **`AZ_TOKEN_EXPIRED`**: The Azure CLI token has expired; re-authentication is required.
 - **`KUSTO_QUERY_FAILED`**: The Kusto query execution failed (e.g., syntax error).
-- **`EXECUTION_TIMEOUT`**: The operation exceeded the internal timeout.
-- **`WRAPPER_EXCEPTION`**: Unexpected internal error.
+- **`SUBSCRIPTION_CACHE_UNAVAILABLE`**: Unable to load subscriptions after login.
+- **`MISSING_REQUIRED_PARAMETER`**: A required parameter (like `subscription_id` for `LOGIN`) was not provided.
+- **`UNKNOWN_ACTION`**: The requested action is not recognized by the wrapper.
+- **`JSON_PARSE_ERROR`**: The input provided via stdin was not valid JSON.
+- **`WRAPPER_EXCEPTION`**: An unexpected internal error occurred.
 
 ## Environment Variables
 

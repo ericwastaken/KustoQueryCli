@@ -5,7 +5,23 @@
 
 set -e
 
-IMAGE_TAG="kusto-query-cli:1.1.0"
+ENV_FILE="$(dirname "$0")/.env"
+
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Error: .env file not found at $ENV_FILE" >&2
+  echo "The .env file must exist and contain KUSTO_QUERY_CLI_VERSION variable." >&2
+  exit 1
+fi
+
+KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
+
+if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
+  echo "Error: KUSTO_QUERY_CLI_VERSION not set in $ENV_FILE" >&2
+  echo "Please add KUSTO_QUERY_CLI_VERSION=<version> to your .env file." >&2
+  exit 1
+fi
+
+IMAGE_TAG="kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}"
 MCP_CONTAINER_NAME="kusto-query-cli-mcp"
 AZURE_STATE_VOLUME="${MCP_CONTAINER_NAME}-azure-state"
 

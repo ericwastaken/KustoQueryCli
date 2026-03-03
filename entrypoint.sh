@@ -1,4 +1,7 @@
 #!/bin/bash
+# entrypoint.sh: A flexible entrypoint for the Docker container.
+# It allows running 'python <args>', 'az <args>', or any other command.
+
 # Check the first argument to decide the action
 if [ "$1" = "python" ]; then
   # Execute the Python script

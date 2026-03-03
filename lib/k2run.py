@@ -5,9 +5,18 @@ import re
 from lib.KustoHandler import execute_adx_query
 from lib.AzureCliHelper import check_azure_cli_logged_in
 
+"""
+lib/k2run.py: Common runner logic for Kusto CLI scripts.
+Handles argument parsing, input source selection (file, string, or stdin), 
+proxy configuration, and authentication checks.
+"""
+
 
 def validate_socks5_proxy(proxy_str):
-    """Validates the <host>:<port> format and port range."""
+    """
+    Validates the <host>:<port> format and port range for a SOCKS5 proxy.
+    Used by argparse.
+    """
     pattern = r'^([^:]+):(\d+)$'
     match = re.match(pattern, proxy_str)
     if not match:
@@ -26,7 +35,10 @@ def validate_socks5_proxy(proxy_str):
 
 
 def k2run():
-
+    """
+    Parses command-line arguments and executes the Kusto query.
+    Returns a pandas DataFrame containing the results.
+    """
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Query Azure Data Explorer from a query file and output results.')
     parser.add_argument('--queryFile', type=str, required=False, help='Full path to the query text file.')

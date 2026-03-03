@@ -12,11 +12,42 @@ from datetime import datetime, timezone
 from lib.KustoHandler import execute_adx_query
 from lib.AzureCliHelper import is_azure_cli_installed
 
+"""
+mcp.py: A Model Context Protocol (MCP) wrapper for Azure Data Explorer (ADX).
+
+This script allows AI models to interact with ADX by providing a structured JSON interface
+for common operations such as authentication, listing subscriptions, and executing queries.
+It is designed to run either directly or inside a Docker container.
+
+Input (via stdin):
+    A JSON object with at least an "action" field and an optional "params" object.
+    Example: {"action": "QUERY", "params": {"query": "...", "database": "...", "cluster_url": "..."}}
+
+Actions:
+    - LOGIN: Initiates or verifies Azure CLI authentication.
+    - LOGOUT: Clears the current Azure CLI session and local caches.
+    - AUTH_STATUS: Checks the current authentication status and returns account details.
+    - LIST_SUBSCRIPTIONS: Returns a list of available Azure subscriptions (cached after login).
+    - QUERY: Executes a Kusto query and returns the results as a list of objects.
+
+Parameters (Environment Variables):
+    - MCP_DEBUG: Set to "true" to enable pretty-printing and detailed error messages.
+
+Usage Notes:
+    - The script uses the Azure CLI ('az') for authentication.
+    - If authentication is required, it initiates a device code login flow.
+    - In Docker, a background monitor process handles the 'az login' interactive steps.
+"""
+
 # Global settings
 DEBUG_MODE = os.environ.get("MCP_DEBUG", "false").lower() == "true"
 SUBSCRIPTIONS_CACHE_FILE = os.path.expanduser("~/.azure/mcp_subscriptions_cache.json")
 
 class KustoEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder to handle types not supported by default, 
+    such as datetime objects and numpy types from pandas DataFrames.
+    """
     def default(self, obj):
         if hasattr(obj, 'isoformat'):
             return obj.isoformat()
@@ -34,9 +65,25 @@ class KustoEncoder(json.JSONEncoder):
         return super().default(obj)
 
 def get_timestamp():
+    """Returns the current UTC timestamp in ISO-8601 format with 'Z' suffix."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 def create_envelope(action, status="success", data=None, error=None, start_time=None, authenticated=False, metadata_extra=None):
+    """
+    Wraps the response in a standard JSON envelope with metadata.
+    
+    Args:
+        action (str): The name of the action being responded to.
+        status (str): "success" or "error".
+        data (dict, optional): The payload for successful responses.
+        error (dict, optional): Error details (type, code, message, details).
+        start_time (float, optional): Start time of the execution for performance tracking.
+        authenticated (bool): Current authentication status.
+        metadata_extra (dict, optional): Additional metadata to include.
+        
+    Returns:
+        dict: The complete response envelope.
+    """
     execution_time_ms = int((time.time() - start_time) * 1000) if start_time else 0
     
     metadata = {
@@ -56,6 +103,10 @@ def create_envelope(action, status="success", data=None, error=None, start_time=
     }
 
 def run_az_command(args):
+    """
+    Executes an Azure CLI ('az') command and returns the result.
+    Handles platform-specific differences (Windows vs Unix).
+    """
     os_name = platform.system().lower()
     if os_name == "windows":
         # On Windows, az is often a batch file, so we might need shell=True or full path
@@ -64,6 +115,7 @@ def run_az_command(args):
         command = ["az"] + args
     
     try:
+        # We capture output to avoid printing directly to stdout, which would break the MCP JSON response
         result = subprocess.run(command, capture_output=True, text=True, check=False)
         return result
     except Exception as e:
@@ -71,6 +123,10 @@ def run_az_command(args):
         return None
 
 def get_auth_status():
+    """
+    Checks if the Azure CLI has an active account session.
+    Returns (authenticated_bool, account_info_dict).
+    """
     result = run_az_command(["account", "show", "--output", "json"])
     if result and result.returncode == 0:
         try:
@@ -81,6 +137,7 @@ def get_auth_status():
     return False, None
 
 def save_subscriptions_cache(subscriptions):
+    """Saves the list of subscriptions to a local JSON file for future reference."""
     try:
         os.makedirs(os.path.dirname(SUBSCRIPTIONS_CACHE_FILE), exist_ok=True)
         payload = {
@@ -93,6 +150,7 @@ def save_subscriptions_cache(subscriptions):
         pass
 
 def load_subscriptions_cache():
+    """Loads the cached list of subscriptions from the local JSON file."""
     try:
         if not os.path.exists(SUBSCRIPTIONS_CACHE_FILE):
             return None
@@ -106,6 +164,7 @@ def load_subscriptions_cache():
     return None
 
 def clear_subscriptions_cache():
+    """Removes the subscription cache file."""
     try:
         if os.path.exists(SUBSCRIPTIONS_CACHE_FILE):
             os.remove(SUBSCRIPTIONS_CACHE_FILE)
@@ -113,6 +172,10 @@ def clear_subscriptions_cache():
         pass
 
 def fetch_valid_subscriptions():
+    """
+    Queries the Azure CLI for the list of subscriptions and filters for enabled ones.
+    Returns a list of subscription metadata objects.
+    """
     result = run_az_command(["account", "list", "--output", "json"])
     if not result or result.returncode != 0:
         return None
@@ -139,6 +202,7 @@ def fetch_valid_subscriptions():
         return None
 
 def refresh_subscriptions_cache():
+    """Fetches subscriptions from Azure CLI and updates the local cache."""
     subscriptions = fetch_valid_subscriptions()
     if subscriptions is not None:
         save_subscriptions_cache(subscriptions)
@@ -148,6 +212,9 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
     """
     Background process that runs 'az login', extracts the device code,
     and then waits for the login to complete while handling subscription selection.
+    
+    This function is intended to be called by a detached background process to avoid
+    blocking the main MCP response cycle.
     """
     os_name = platform.system().lower()
     cmd = ["az", "login", "--use-device-code"]
@@ -164,9 +231,11 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
             with open("/tmp/mcp_login_monitor.log", "a") as f:
                 f.write(f"[{get_timestamp()}] Monitor started. Temp file: {temp_file_path}, Sub ID: {subscription_id}\n")
 
+        # Start 'az login' as a subprocess
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, text=True)
         
         # Set non-blocking mode for stdout and stderr if not on Windows
+        # This allows us to read output as it comes in without getting stuck
         if os_name != "windows":
             import fcntl
             for pipe in [process.stdout, process.stderr]:
@@ -200,7 +269,7 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
                         f.write(f"[{get_timestamp()}] Process exited with code {process.returncode}\n")
                 break
             
-            # Read from both pipes
+            # Read from both pipes to capture URL and device code
             data_err = read_nonblocking(process.stderr)
             data_out = read_nonblocking(process.stdout)
             data = (data_err or "") + (data_out or "")
@@ -215,12 +284,13 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
                     f.write(f"[{get_timestamp()}] Output chunk: {data}\n")
 
             if not device_code_written:
-                # Look for verification URL and device code
+                # Look for verification URL and device code in the output
                 match = re.search(r"(https://\S+).+code (\S+)", output)
                 if match:
                     verification_url = match.group(1)
                     device_code = match.group(2)
                     try:
+                        # Write details to temp file for the main process to read
                         with open(temp_file_path, "w") as f:
                             json.dump({"url": verification_url, "code": device_code}, f)
                         device_code_written = True
@@ -232,7 +302,7 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
                             with open("/tmp/mcp_login_monitor.log", "a") as f:
                                 f.write(f"[{get_timestamp()}] Error writing temp file: {str(e)}\n")
             
-            # Handle subscription selection if it appears in output
+            # If multiple subscriptions are available, Azure CLI prompts for selection
             if subscription_id and not selection_done:
                 # Search entire output for a line containing both subscription_id and a bracketed index
                 # The format is typically: [index] Name ID Tenant
@@ -273,6 +343,13 @@ def handle_internal_login_monitor(temp_file_path, subscription_id=None):
             process.terminate()
 
 def start_device_login_flow(start_time, action_name, subscription_id=None, restarted_for_changed_subscription=False, custom_message=None):
+    """
+    Initiates a background login process and returns the device code and URL to the user.
+    
+    This function spawns a detached background monitor that manages the actual 'az login' 
+    process and subscription selection, allowing the main script to return immediately 
+    with the instructions for the user.
+    """
     os_name = platform.system().lower()
     
     # Create temp file to communicate with monitor process
@@ -280,14 +357,13 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
     os.close(fd)
     
     try:
-        # Spawn monitor process
-        # Use sys.executable and os.path.abspath(__file__) to run this script again
+        # Spawn monitor process by running mcp.py with --internal-login-monitor
         script_path = os.path.abspath(__file__)
         cmd = [sys.executable, script_path, "--internal-login-monitor", temp_file_path]
         if subscription_id:
             cmd.append(subscription_id)
             
-        # Detach process
+        # Detach process so it continues running after we exit
         kwargs = {}
         if os_name != "windows":
             kwargs["start_new_session"] = True
@@ -298,10 +374,10 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
 
         subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, **kwargs)
         
-        # Poll for the temp file to get device code
+        # Poll for the temp file to get device code extracted by the monitor
         device_code_info = None
         poll_start = time.time()
-        while time.time() - poll_start < 15:
+        while time.time() - poll_start < 15: # Wait up to 15 seconds for 'az' to start and provide code
             if os.path.exists(temp_file_path) and os.path.getsize(temp_file_path) > 0:
                 try:
                     with open(temp_file_path, "r") as f:
@@ -312,7 +388,7 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
             time.sleep(0.5)
             
         if not device_code_info:
-            # Cleanup
+            # Cleanup temp file if we failed
             if os.path.exists(temp_file_path): os.remove(temp_file_path)
             error = {
                 "type": "authentication_error",
@@ -355,6 +431,12 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
         return create_envelope(action_name, status="error", error=error, start_time=start_time, authenticated=False)
 
 def handle_login(start_time, subscription_id=None):
+    """
+    Handles the LOGIN action.
+    
+    If already authenticated to the requested subscription, returns success.
+    Otherwise, initiates the device code login flow.
+    """
     restarted_for_changed_subscription = False
 
     if not subscription_id:
@@ -411,6 +493,11 @@ def handle_login(start_time, subscription_id=None):
     )
 
 def handle_auth_status(start_time):
+    """
+    Handles the AUTH_STATUS action.
+    
+    Checks if the Azure CLI is logged in and returns account and subscription details.
+    """
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
@@ -443,6 +530,11 @@ def handle_auth_status(start_time):
         return create_envelope("AUTH_STATUS", data=data, start_time=start_time, authenticated=False)
 
 def handle_logout(start_time):
+    """
+    Handles the LOGOUT action.
+    
+    Clears the Azure CLI session and removes the local subscription cache.
+    """
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
@@ -477,6 +569,13 @@ def handle_logout(start_time):
         return create_envelope("LOGOUT", status="error", error=error, start_time=start_time, authenticated=is_auth)
 
 def handle_list_subscriptions(start_time, subscription_id=None):
+    """
+    Handles the LIST_SUBSCRIPTIONS action.
+    
+    Returns the list of subscriptions available to the user.
+    If not authenticated, starts a login flow.
+    Uses a local cache to avoid slow 'az account list' calls on every request.
+    """
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
@@ -514,6 +613,12 @@ def handle_list_subscriptions(start_time, subscription_id=None):
     return create_envelope("LIST_SUBSCRIPTIONS", data=data, start_time=start_time, authenticated=True)
 
 def handle_query(params, start_time):
+    """
+    Handles the QUERY action.
+    
+    Executes a KQL query against the specified ADX cluster and database.
+    Supports SOCKS5 proxy configuration.
+    """
     query = params.get("query")
     database = params.get("database")
     cluster_url = params.get("cluster_url")
@@ -580,6 +685,10 @@ def handle_query(params, start_time):
         return create_envelope("QUERY", status="error", error=error, start_time=start_time, authenticated=True, metadata_extra=metadata_extra)
 
 def main():
+    """
+    Main entry point for the MCP wrapper.
+    Reads JSON from stdin, dispatches to the appropriate handler, and prints JSON response.
+    """
     start_time = time.time()
     try:
         # MCP usually receives input via stdin as a single line JSON
@@ -592,6 +701,7 @@ def main():
         params = input_data.get("params", {})
         subscription_id = params.get("subscription_id")
 
+        # Dispatch based on action
         if action == "LOGIN":
             if isinstance(subscription_id, str):
                 subscription_id = subscription_id.strip()
@@ -614,13 +724,12 @@ def main():
             }
             response = create_envelope(action, status="error", error=error, start_time=start_time)
 
+        # Output the response as a single-line JSON (or pretty-printed in debug mode)
         print(json.dumps(response, indent=2 if DEBUG_MODE else None, cls=KustoEncoder))
         sys.stdout.flush()
         
-        # For LOGIN and LIST_SUBSCRIPTIONS starting a login flow, we must exit immediately
-        # so the caller (like docker-mcp.sh) returns, while the daemon thread stays in the background
-        # if the process is not truly exited. Actually, once main() returns, the process will exit
-        # because the background thread is a daemon.
+        # Special case: If we started a background login process, we exit the main process 
+        # so the caller gets the device code immediately, but the monitor continues in background.
         if action in ["LOGIN", "LIST_SUBSCRIPTIONS"] and response.get("status") == "success" and response.get("data", {}).get("login_required"):
             sys.exit(0)
 
