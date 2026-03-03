@@ -82,25 +82,6 @@ you can follow the instructions above for macOS and Linux.
 
 A technical guide for the MCP wrapper can be found in [README-MCP.md](README-MCP.md).
 
-### Usage
-
-The MCP wrapper can be run directly with Python or via Docker.
-
-**Directly:**
-```bash
-echo '{"action": "AUTH_STATUS"}' | python mcp.py
-```
-
-**Docker (macOS / Linux / Windows with WSL):**
-```bash
-echo '{"action": "AUTH_STATUS"}' | ./docker-mcp.sh
-```
-
-**Docker (Windows Command Prompt):**
-```cmd
-echo {"action": "AUTH_STATUS"} | docker-mcp.bat
-```
-
 #### Step 1: Authenticate with the Azure CLI
 
 To use the script, first authenticate using the Azure Cli

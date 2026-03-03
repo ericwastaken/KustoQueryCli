@@ -2,6 +2,14 @@
 
 This project provides a Model Context Protocol (MCP) wrapper for interacting with Azure Data Explorer (ADX) via the Azure CLI.
 
+## Quick Start for MCP Use
+
+### Docker (macOS / Linux / Windows with WSL)
+1. Install Docker on your workstation.
+2. Force an initial build of the Docker image: `echo '{"action":"AUTH_STATUS"}' | ./docker-mcp.sh` (only needed the 
+   first time or after a new version!)
+3. Run the MCP wrapper from your favorite MCP client: TODO
+
 ## Actions
 
 The MCP wrapper (`mcp.py`) supports the following actions:
@@ -128,6 +136,28 @@ All responses follow this structure:
 - **`JSON_PARSE_ERROR`**: The input provided via stdin was not valid JSON.
 - **`WRAPPER_EXCEPTION`**: An unexpected internal error occurred.
 
+## Usage
+
+The MCP wrapper can be run directly via Docker (recommended for full isolation) or native Python.
+
+**Docker (macOS / Linux / Windows with WSL):**
+```bash
+echo '{"action": "AUTH_STATUS"}' | ./docker-mcp.sh
+```
+
+**Docker (Windows Command Prompt):**
+```cmd
+echo {"action": "AUTH_STATUS"} | docker-mcp.bat
+```
+
+**Native Python:**
+```bash
+echo '{"action": "AUTH_STATUS"}' | python mcp.py
+```
+
+> **Note:** Running the MCP wrapper in native Python requires Python 3.12+ AND the Azure CLI on your workstation.
+
+
 ## Environment Variables
 
 - `MCP_DEBUG`: Set to `true` to enable pretty-printed JSON and include detailed error messages.
@@ -146,41 +176,5 @@ On Windows:
 ```cmd
 set MCP_DEBUG=true
 echo {"action": "AUTH_STATUS"} | python mcp.py
-```
-
-## Usage
-
-Run the script and provide the action JSON via stdin:
-
-```bash
-echo '{"action": "AUTH_STATUS"}' | python mcp.py
-```
-
-### Docker Usage
-
-You can also run the MCP wrapper using Docker. This ensures that all dependencies, including the Azure CLI, are correctly installed.
-
-**Container Lifecycle**:
-When using `docker-mcp.sh` or `docker-mcp.bat`, the container is started in the background (if not already running) and reused for subsequent calls. This is necessary to maintain background processes such as Azure CLI authentication.
-
-To stop the background container and clean up, you can use:
-```bash
-./docker-run.sh down
-```
-
-**macOS / Linux / Windows with WSL**
-
-Use the provided `docker-mcp.sh` script:
-
-```bash
-echo '{"action": "AUTH_STATUS"}' | ./docker-mcp.sh
-```
-
-**Windows**
-
-Use the provided `docker-mcp.bat` script:
-
-```cmd
-echo {"action": "AUTH_STATUS"} | docker-mcp.bat
 ```
 
