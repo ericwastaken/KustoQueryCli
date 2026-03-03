@@ -8,3 +8,15 @@
 !entrypoint.sh
 !requirements.txt
 !lib/
+!mcp-manifest.json
+!mcp-wrapper-version
+!mcp-protocol-version
+!schemas/
+!capabilities.json
+
+# Optionally include MCP docs and examples (harmless for runtime, useful for inspection)
+!README-MCP.md
+!mcp-contract.md
+!examples/
+!LICENSE
+!README.md

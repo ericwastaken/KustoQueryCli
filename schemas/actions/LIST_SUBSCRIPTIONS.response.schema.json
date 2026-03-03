@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LIST_SUBSCRIPTIONS Action Response Data",
+  "type": "object",
+  "properties": {
+    "subscriptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "tenant_id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "login_required": {
+      "type": "boolean"
+    },
+    "device_login": {
+      "type": "object",
+      "properties": {
+        "verification_url": {
+          "type": "string"
+        },
+        "device_code": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LIST_SUBSCRIPTIONS Action Request",
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "LIST_SUBSCRIPTIONS"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Optional subscription ID to target for login if session is not active."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

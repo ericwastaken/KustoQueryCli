@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AUTH_STATUS Action Request",
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "AUTH_STATUS"
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": false
+    }
+  }
+}

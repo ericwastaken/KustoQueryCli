@@ -1,0 +1,20 @@
+{
+  "status": "error",
+  "action": "QUERY",
+  "data": null,
+  "error": {
+    "type": "authentication",
+    "code": "AZ_NOT_AUTHENTICATED",
+    "message": "Action requires active Azure CLI session.",
+    "retryable": false,
+    "severity": "high"
+  },
+  "metadata": {
+    "timestamp": "2024-03-21T10:00:15Z",
+    "execution_time_ms": 15,
+    "authenticated": false,
+    "request_id": "b90c006d-741e-42c2-8495-2c86b24032f3",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

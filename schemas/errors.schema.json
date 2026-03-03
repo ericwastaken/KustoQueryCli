@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mcp.io/schemas/errors.schema.json",
+  "title": "MCP Error Taxonomy",
+  "description": "Standardized error classification for MCP actions.",
+  "type": "object",
+  "required": [
+    "type",
+    "code",
+    "message",
+    "retryable",
+    "severity"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "authentication",
+        "validation",
+        "execution",
+        "transport",
+        "internal"
+      ],
+      "description": "High-level classification of the error category."
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z0-9_]+$",
+      "description": "Machine-readable SCREAMING_SNAKE_CASE error code."
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable description of the error."
+    },
+    "retryable": {
+      "type": "boolean",
+      "description": "Indicates whether the client should attempt the same request again."
+    },
+    "http_equivalent": {
+      "type": "integer",
+      "description": "Optional HTTP status code mapping for the error.",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "description": "Relative impact of the error on system operation."
+    },
+    "details": {
+      "type": "object",
+      "description": "Action-specific error context or debugging data."
+    }
+  }
+}

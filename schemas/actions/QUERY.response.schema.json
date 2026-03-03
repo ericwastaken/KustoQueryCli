@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QUERY Action Response Data",
+  "type": "object",
+  "required": [
+    "result",
+    "row_count"
+  ],
+  "properties": {
+    "result": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "description": "List of rows returned by the KQL query."
+    },
+    "row_count": {
+      "type": "integer",
+      "description": "Total number of rows returned."
+    }
+  },
+  "additionalProperties": false
+}

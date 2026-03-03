@@ -8,6 +8,7 @@ import platform
 import shlex
 import threading
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from lib.KustoHandler import execute_adx_query
 from lib.AzureCliHelper import is_azure_cli_installed
@@ -40,6 +41,26 @@ Usage Notes:
 """
 
 # Global settings
+VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-wrapper-version")
+PROTOCOL_VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-protocol-version")
+MANIFEST_FILE = os.path.join(os.path.dirname(__file__), "mcp-manifest.json")
+
+def load_version():
+    try:
+        with open(VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except:
+        return "0.0.0"
+
+def load_protocol_version():
+    try:
+        with open(PROTOCOL_VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except:
+        return "1.0"
+
+WRAPPER_VERSION = load_version()
+PROTOCOL_VERSION = load_protocol_version()
 DEBUG_MODE = os.environ.get("MCP_DEBUG", "false").lower() == "true"
 SUBSCRIPTIONS_CACHE_FILE = os.path.expanduser("~/.azure/mcp_subscriptions_cache.json")
 
@@ -68,7 +89,7 @@ def get_timestamp():
     """Returns the current UTC timestamp in ISO-8601 format with 'Z' suffix."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-def create_envelope(action, status="success", data=None, error=None, start_time=None, authenticated=False, metadata_extra=None):
+def create_envelope(action, status="success", data=None, error=None, start_time=None, authenticated=False, metadata_extra=None, request_id=None):
     """
     Wraps the response in a standard JSON envelope with metadata.
     
@@ -80,6 +101,7 @@ def create_envelope(action, status="success", data=None, error=None, start_time=
         start_time (float, optional): Start time of the execution for performance tracking.
         authenticated (bool): Current authentication status.
         metadata_extra (dict, optional): Additional metadata to include.
+        request_id (str, optional): Unique ID of the request being responded to.
         
     Returns:
         dict: The complete response envelope.
@@ -89,7 +111,10 @@ def create_envelope(action, status="success", data=None, error=None, start_time=
     metadata = {
         "timestamp": get_timestamp(),
         "execution_time_ms": execution_time_ms,
-        "authenticated": authenticated
+        "authenticated": authenticated,
+        "request_id": request_id or str(uuid.uuid4()),
+        "wrapper_version": WRAPPER_VERSION,
+        "protocol_version": PROTOCOL_VERSION
     }
     if metadata_extra:
         metadata.update(metadata_extra)
@@ -391,9 +416,11 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
             # Cleanup temp file if we failed
             if os.path.exists(temp_file_path): os.remove(temp_file_path)
             error = {
-                "type": "authentication_error",
+                "type": "authentication",
                 "code": "AZ_LOGIN_FAILED",
-                "message": "Azure CLI login process failed to start or provide device code in time."
+                "message": "Azure CLI login process failed to start or provide device code in time.",
+                "retryable": True,
+                "severity": "medium"
             }
             return create_envelope(action_name, status="error", error=error, start_time=start_time, authenticated=False)
             
@@ -424,9 +451,11 @@ def start_device_login_flow(start_time, action_name, subscription_id=None, resta
     except Exception as e:
         if os.path.exists(temp_file_path): os.remove(temp_file_path)
         error = {
-            "type": "internal_error",
+            "type": "internal",
             "code": "WRAPPER_EXCEPTION",
-            "message": str(e) if DEBUG_MODE else "Unexpected internal error occurred during login flow start."
+            "message": str(e) if DEBUG_MODE else "Unexpected internal error occurred during login flow start.",
+            "retryable": False,
+            "severity": "high"
         }
         return create_envelope(action_name, status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -441,9 +470,11 @@ def handle_login(start_time, subscription_id=None):
 
     if not subscription_id:
         error = {
-            "type": "invalid_request",
+            "type": "validation",
             "code": "MISSING_REQUIRED_PARAMETER",
-            "message": "LOGIN requires params.subscription_id."
+            "message": "LOGIN requires params.subscription_id.",
+            "retryable": False,
+            "severity": "low"
         }
         return create_envelope("LOGIN", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -467,9 +498,11 @@ def handle_login(start_time, subscription_id=None):
         logout_result = run_az_command(["logout"])
         if logout_result is None or logout_result.returncode != 0:
             error = {
-                "type": "authentication_error",
+                "type": "authentication",
                 "code": "AZ_LOGOUT_FAILED",
                 "message": "Failed to logout existing Azure CLI session before re-login.",
+                "retryable": True,
+                "severity": "medium",
                 "details": {"current_subscription_id": current_subscription_id}
             }
             return create_envelope("LOGIN", status="error", error=error, start_time=start_time, authenticated=False)
@@ -479,9 +512,11 @@ def handle_login(start_time, subscription_id=None):
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
-            "type": "environment_error",
+            "type": "internal",
             "code": "AZ_CLI_NOT_FOUND",
-            "message": "Azure CLI is not available in container environment."
+            "message": "Azure CLI is not available in container environment.",
+            "retryable": False,
+            "severity": "critical"
         }
         return create_envelope("LOGIN", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -501,9 +536,11 @@ def handle_auth_status(start_time):
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
-            "type": "environment_error",
+            "type": "internal",
             "code": "AZ_CLI_NOT_FOUND",
-            "message": "Azure CLI is not available in container environment."
+            "message": "Azure CLI is not available in container environment.",
+            "retryable": False,
+            "severity": "critical"
         }
         return create_envelope("AUTH_STATUS", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -538,9 +575,11 @@ def handle_logout(start_time):
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
-            "type": "environment_error",
+            "type": "internal",
             "code": "AZ_CLI_NOT_FOUND",
-            "message": "Azure CLI is not available in container environment."
+            "message": "Azure CLI is not available in container environment.",
+            "retryable": False,
+            "severity": "critical"
         }
         return create_envelope("LOGOUT", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -561,9 +600,11 @@ def handle_logout(start_time):
         return create_envelope("LOGOUT", data=data, start_time=start_time, authenticated=False)
     else:
         error = {
-            "type": "authentication_error",
+            "type": "authentication",
             "code": "AZ_LOGOUT_FAILED",
             "message": "Azure CLI logout process failed.",
+            "retryable": True,
+            "severity": "medium",
             "details": {"stderr": result.stderr if result else "Failed to run az command."}
         }
         return create_envelope("LOGOUT", status="error", error=error, start_time=start_time, authenticated=is_auth)
@@ -579,9 +620,11 @@ def handle_list_subscriptions(start_time, subscription_id=None):
     os_name = platform.system().lower()
     if not is_azure_cli_installed(os_name):
         error = {
-            "type": "environment_error",
+            "type": "internal",
             "code": "AZ_CLI_NOT_FOUND",
-            "message": "Azure CLI is not available in container environment."
+            "message": "Azure CLI is not available in container environment.",
+            "retryable": False,
+            "severity": "critical"
         }
         return create_envelope("LIST_SUBSCRIPTIONS", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -599,9 +642,11 @@ def handle_list_subscriptions(start_time, subscription_id=None):
         subscriptions = refresh_subscriptions_cache()
     if subscriptions is None:
         error = {
-            "type": "subscription_error",
+            "type": "internal",
             "code": "SUBSCRIPTION_CACHE_UNAVAILABLE",
-            "message": "Unable to load subscriptions stored after the last login."
+            "message": "Unable to load subscriptions stored after the last login.",
+            "retryable": True,
+            "severity": "high"
         }
         return create_envelope("LIST_SUBSCRIPTIONS", status="error", error=error, start_time=start_time, authenticated=True)
 
@@ -627,9 +672,11 @@ def handle_query(params, start_time):
 
     if not query or not database or not cluster_url:
         error = {
-            "type": "invalid_parameters",
+            "type": "validation",
             "code": "MISSING_PARAMS",
-            "message": "Missing required parameters: query, database, cluster_url."
+            "message": "Missing required parameters: query, database, cluster_url.",
+            "retryable": False,
+            "severity": "low"
         }
         return create_envelope("QUERY", status="error", error=error, start_time=start_time)
 
@@ -637,9 +684,11 @@ def handle_query(params, start_time):
     is_auth, _ = get_auth_status()
     if not is_auth:
         error = {
-            "type": "authentication_required",
+            "type": "authentication",
             "code": "AZ_NOT_AUTHENTICATED",
-            "message": "Azure CLI session is not authenticated. Invoke LOGIN action."
+            "message": "Azure CLI session is not authenticated. Invoke LOGIN action.",
+            "retryable": False,
+            "severity": "medium"
         }
         return create_envelope("QUERY", status="error", error=error, start_time=start_time, authenticated=False)
 
@@ -669,20 +718,40 @@ def handle_query(params, start_time):
         # Check for expired token or other errors
         if "token" in error_msg.lower() and "expire" in error_msg.lower():
             error = {
-                "type": "authentication_expired",
+                "type": "authentication",
                 "code": "AZ_TOKEN_EXPIRED",
-                "message": "Azure CLI token has expired. Re-authentication required."
+                "message": "Azure CLI token has expired. Re-authentication required.",
+                "retryable": True,
+                "severity": "medium"
             }
             return create_envelope("QUERY", status="error", error=error, start_time=start_time, authenticated=False, metadata_extra=metadata_extra)
         
         # Generic query failure
         error = {
-            "type": "query_error",
+            "type": "execution",
             "code": "KUSTO_QUERY_FAILED",
             "message": "Kusto query execution failed.",
+            "retryable": False,
+            "severity": "medium",
             "details": {"reason": error_msg}
         }
         return create_envelope("QUERY", status="error", error=error, start_time=start_time, authenticated=True, metadata_extra=metadata_extra)
+
+def handle_manifest(start_time, request_id=None):
+    """Returns the capability manifest of the MCP wrapper."""
+    try:
+        with open(MANIFEST_FILE, "r") as f:
+            manifest_data = json.load(f)
+        return create_envelope("MANIFEST", data=manifest_data, start_time=start_time, request_id=request_id)
+    except Exception as e:
+        error = {
+            "type": "internal",
+            "code": "WRAPPER_EXCEPTION",
+            "message": f"Failed to load manifest: {str(e)}",
+            "retryable": False,
+            "severity": "high"
+        }
+        return create_envelope("MANIFEST", status="error", error=error, start_time=start_time, request_id=request_id)
 
 def main():
     """
@@ -699,10 +768,13 @@ def main():
         input_data = json.loads(input_str)
         action = input_data.get("action", "").upper()
         params = input_data.get("params", {})
+        request_id = input_data.get("request_id")
         subscription_id = params.get("subscription_id")
 
         # Dispatch based on action
-        if action == "LOGIN":
+        if action == "MANIFEST":
+            response = handle_manifest(start_time, request_id)
+        elif action == "LOGIN":
             if isinstance(subscription_id, str):
                 subscription_id = subscription_id.strip()
             response = handle_login(start_time, subscription_id)
@@ -718,11 +790,17 @@ def main():
             response = handle_query(params, start_time)
         else:
             error = {
-                "type": "invalid_request",
+                "type": "validation",
                 "code": "UNKNOWN_ACTION",
-                "message": f"Unknown action: {action}"
+                "message": f"Unknown action: {action}",
+                "retryable": False,
+                "severity": "low"
             }
-            response = create_envelope(action, status="error", error=error, start_time=start_time)
+            response = create_envelope(action, status="error", error=error, start_time=start_time, request_id=request_id)
+
+        # Inject request_id if it was provided by the client but not yet set in metadata
+        if request_id and response.get("metadata"):
+            response["metadata"]["request_id"] = request_id
 
         # Output the response as a single-line JSON (or pretty-printed in debug mode)
         print(json.dumps(response, indent=2 if DEBUG_MODE else None, cls=KustoEncoder))
@@ -735,9 +813,11 @@ def main():
 
     except json.JSONDecodeError:
         error = {
-            "type": "invalid_request",
+            "type": "validation",
             "code": "JSON_PARSE_ERROR",
-            "message": "Failed to parse input JSON."
+            "message": "Failed to parse input JSON.",
+            "retryable": False,
+            "severity": "low"
         }
         print(json.dumps(create_envelope("UNKNOWN", status="error", error=error, start_time=start_time), cls=KustoEncoder))
     except Exception as e:
@@ -751,9 +831,11 @@ def main():
             pass
             
         error = {
-            "type": "internal_error",
+            "type": "internal",
             "code": "WRAPPER_EXCEPTION",
-            "message": str(e) if DEBUG_MODE else "Unexpected internal error occurred."
+            "message": str(e) if DEBUG_MODE else "Unexpected internal error occurred.",
+            "retryable": False,
+            "severity": "high"
         }
         print(json.dumps(create_envelope(current_action, status="error", error=error, start_time=start_time), cls=KustoEncoder))
 

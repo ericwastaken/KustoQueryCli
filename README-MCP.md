@@ -14,6 +14,11 @@ This project provides a Model Context Protocol (MCP) wrapper for interacting wit
 
 The MCP wrapper (`mcp.py`) supports the following actions:
 
+### `MANIFEST`
+Returns the machine-readable capability manifest.
+- **Request**: `{"action": "MANIFEST"}`
+- **Response**: Standard JSON envelope containing the content of `mcp-manifest.json` in the `data` field.
+
 ### `LOGIN`
 Initiates or verifies Azure CLI authentication.
 - **Request**: 
@@ -26,7 +31,7 @@ Initiates or verifies Azure CLI authentication.
   }
   ```
 - **Parameters**:
-    - `subscription_id` (string, optional): The target Azure subscription ID. If provided, the wrapper will attempt to 
+    - `subscription_id` (string, required): The target Azure subscription ID. The wrapper will attempt to 
       select this subscription during the login process or switch to it if already authenticated.
 - **Behavior**:
     - If already authenticated, returns current subscription and tenant details.
@@ -109,32 +114,40 @@ All responses follow this structure:
     "action": "ACTION_NAME",
     "data": { ... },
     "error": {
-        "type": "category",
+        "type": "authentication | validation | execution | transport | internal",
         "code": "MACHINE_READABLE_CODE",
         "message": "Human readable message",
+        "retryable": true,
+        "severity": "low | medium | high | critical",
         "details": { ... }
     },
     "metadata": {
         "timestamp": "ISO-8601",
         "execution_time_ms": 123,
-        "authenticated": true
+        "authenticated": true,
+        "request_id": "uuid",
+        "wrapper_version": "1.0.0",
+        "protocol_version": "1.0"
     }
 }
 ```
 
 ## Error Handling
 
-- **`AZ_CLI_NOT_FOUND`**: Azure CLI is not installed in the environment.
-- **`AZ_NOT_AUTHENTICATED`**: Action requires authentication, but the user is not logged in.
-- **`AZ_LOGIN_FAILED`**: The Azure CLI login process failed to start or provide a device code.
-- **`AZ_LOGOUT_FAILED`**: The logout process failed (e.g., no active session).
-- **`AZ_TOKEN_EXPIRED`**: The Azure CLI token has expired; re-authentication is required.
-- **`KUSTO_QUERY_FAILED`**: The Kusto query execution failed (e.g., syntax error).
-- **`SUBSCRIPTION_CACHE_UNAVAILABLE`**: Unable to load subscriptions after login.
-- **`MISSING_REQUIRED_PARAMETER`**: A required parameter (like `subscription_id` for `LOGIN`) was not provided.
-- **`UNKNOWN_ACTION`**: The requested action is not recognized by the wrapper.
-- **`JSON_PARSE_ERROR`**: The input provided via stdin was not valid JSON.
-- **`WRAPPER_EXCEPTION`**: An unexpected internal error occurred.
+| Code | Type | Description |
+|---|---|---|
+| **`AZ_CLI_NOT_FOUND`** | `internal` | Azure CLI is not installed in the environment. |
+| **`AZ_NOT_AUTHENTICATED`** | `authentication` | Action requires authentication, but the user is not logged in. |
+| **`AZ_LOGIN_FAILED`** | `authentication` | The Azure CLI login process failed to start or provide a device code. |
+| **`AZ_LOGOUT_FAILED`** | `authentication` | The logout process failed. |
+| **`AZ_TOKEN_EXPIRED`** | `authentication` | The Azure CLI token has expired; re-authentication is required. |
+| **`KUSTO_QUERY_FAILED`** | `execution` | The Kusto query execution failed (e.g., syntax error). |
+| **`SUBSCRIPTION_CACHE_UNAVAILABLE`** | `internal` | Unable to load subscriptions after login. |
+| **`MISSING_REQUIRED_PARAMETER`** | `validation` | A required parameter (like `subscription_id` for `LOGIN`) was not provided. |
+| **`MISSING_PARAMS`** | `validation` | Required parameters for `QUERY` were not provided. |
+| **`UNKNOWN_ACTION`** | `validation` | The requested action is not recognized by the wrapper. |
+| **`JSON_PARSE_ERROR`** | `validation` | The input provided via stdin was not valid JSON. |
+| **`WRAPPER_EXCEPTION`** | `internal` | An unexpected internal error occurred. |
 
 ## Usage
 

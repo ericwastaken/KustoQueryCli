@@ -1,0 +1,20 @@
+{
+  "status": "error",
+  "action": "MANIFEST",
+  "data": null,
+  "error": {
+    "type": "transport",
+    "code": "PROTOCOL_VERSION_MISMATCH",
+    "message": "The client protocol version (2.0) is not supported by this wrapper (1.0).",
+    "retryable": false,
+    "severity": "critical"
+  },
+  "metadata": {
+    "timestamp": "2024-03-21T10:00:20Z",
+    "execution_time_ms": 5,
+    "authenticated": false,
+    "request_id": "7f09f02e-9d8e-4f1e-8e6e-2f8e9d0e1e2f",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

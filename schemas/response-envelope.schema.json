@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mcp.io/schemas/response-envelope.schema.json",
+  "title": "MCP Response Envelope",
+  "description": "Standardized response structure for all MCP actions.",
+  "type": "object",
+  "required": [
+    "status",
+    "action",
+    "metadata"
+  ],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "error"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "description": "The name of the action performed."
+    },
+    "data": {
+      "type": "object",
+      "description": "The result payload of the action, defined by action-specific schemas."
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "errors.schema.json"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "timestamp",
+        "execution_time_ms",
+        "authenticated",
+        "request_id",
+        "wrapper_version",
+        "protocol_version"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 formatted timestamp of the response."
+        },
+        "execution_time_ms": {
+          "type": "number",
+          "description": "Duration of action execution in milliseconds."
+        },
+        "authenticated": {
+          "type": "boolean",
+          "description": "Indicates whether the current session is authenticated."
+        },
+        "request_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for the request-response cycle."
+        },
+        "wrapper_version": {
+          "type": "string",
+          "description": "Version of the MCP wrapper."
+        },
+        "protocol_version": {
+          "type": "string",
+          "description": "Version of the MCP protocol supported."
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

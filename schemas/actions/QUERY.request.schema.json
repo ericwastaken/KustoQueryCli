@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QUERY Action Request",
+  "type": "object",
+  "required": [
+    "action",
+    "params"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "QUERY"
+    },
+    "params": {
+      "type": "object",
+      "required": [
+        "query",
+        "database",
+        "cluster_url"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "The KQL query to execute."
+        },
+        "database": {
+          "type": "string",
+          "description": "The target database name."
+        },
+        "cluster_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "The ADX cluster URL (e.g., https://mycluster.kusto.windows.net)."
+        },
+        "socks5_proxy": {
+          "type": "string",
+          "description": "Optional SOCKS5 proxy in host:port format."
+        },
+        "socks5_dns": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to use the SOCKS5 proxy for DNS resolution."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

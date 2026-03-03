@@ -1,0 +1,24 @@
+{
+  "status": "success",
+  "action": "QUERY",
+  "data": {
+    "result": [
+      {
+        "StartTime": "2007-01-01T00:00:00Z",
+        "EndTime": "2007-01-01T00:21:00Z",
+        "EventId": 5547,
+        "State": "OKLAHOMA"
+      }
+    ],
+    "row_count": 1
+  },
+  "error": null,
+  "metadata": {
+    "timestamp": "2024-03-21T10:00:00Z",
+    "execution_time_ms": 125,
+    "authenticated": true,
+    "request_id": "550e8400-e29b-41d4-a716-446655440000",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

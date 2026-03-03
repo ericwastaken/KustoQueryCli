@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MANIFEST Action Response Data",
+  "type": "object",
+  "description": "The result of the MANIFEST action, containing the full capability manifest.",
+  "allOf": [
+    {
+      "$ref": "../manifest.schema.json"
+    }
+  ]
+}
