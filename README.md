@@ -78,9 +78,28 @@ Linux (WSL). This is a feature of Windows that allows you to run a Linux environ
 install WSL by following the instructions here: https://docs.microsoft.com/en-us/windows/wsl/install. Form within WSL,
 you can follow the instructions above for macOS and Linux.
 
+## Model Context Protocol (MCP) Wrapper
+
+A technical guide for the MCP wrapper can be found in [README-MCP.md](README-MCP.md).
+
 ### Usage
 
-Using this script is simple but requires a few steps.
+The MCP wrapper can be run directly with Python or via Docker.
+
+**Directly:**
+```bash
+echo '{"action": "AUTH_STATUS"}' | python mcp.py
+```
+
+**Docker (macOS / Linux / Windows with WSL):**
+```bash
+echo '{"action": "AUTH_STATUS"}' | ./docker-mcp.sh
+```
+
+**Docker (Windows Command Prompt):**
+```cmd
+echo {"action": "AUTH_STATUS"} | docker-mcp.bat
+```
 
 #### Step 1: Authenticate with the Azure CLI
 
@@ -109,23 +128,35 @@ source ./venv/bin/activate
 #### Step 3: Run the Script
 
 Still in the script's directory in your terminal or command prompt, run the command that corresponds to the output 
-format you want:
+format you want.
+
+You can provide the query in three ways:
+1.  **Query File:** Using the `--queryFile` argument.
+2.  **Query String:** Using the `--query` argument.
+3.  **Standard Input (stdin):** Piping the query to the script.
 
 **macOS / Linux / Windows with WSL**  
 ```bash
-# Output to CSV
+# Output to CSV using a query file
 python k2csv.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 
-# Output to JSON
-python k2json.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+# Output to JSON using a query string
+python k2json.py --query "MyTable | limit 10" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+
+# Output to JSON piping from stdin
+echo "MyTable | count" | python k2json.py --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
 **Windows**  
 ```cmd
-# Output to CSV
+# Output to CSV using a query file
 python k2csv.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
-# Output to JSON
-python k2json.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+
+# Output to JSON using a query string
+python k2json.py --query "MyTable | limit 10" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
+
+# Output to JSON piping from stdin
+echo MyTable ^| count | python k2json.py --database "name-of-database-to-query" --adxUrl "https://<cluster-address>"
 ```
 
 > **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent runs 
@@ -136,11 +167,13 @@ like to save the output to a file, you can redirect the output to a file using t
 
 **macOS / Linux / Windows with WSL**  
 ```bash
+# Output to CSV using a query file
 python k2csv.py --queryFile "/path/to/query/file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>" > output.csv
 ```
 
 **Windows**  
 ```cmd
+# Output to CSV using a query file
 python k2csv.py --queryFile "C:\path\to\query\file" --database "name-of-database-to-query" --adxUrl "https://<cluster-address>" > output.csv
 ```
 

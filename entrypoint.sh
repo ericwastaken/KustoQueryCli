@@ -9,5 +9,6 @@ elif [ "$1" = "az" ]; then
   # Pass all arguments except the first one to Azure CLI
   az "${@:2}"
 else
-  echo "Unsupported command"
+  # Just execute the command passed
+  "$@"
 fi
