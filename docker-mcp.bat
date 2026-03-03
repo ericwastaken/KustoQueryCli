@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Always execute from the directory where this script resides so relative paths work.
+pushd %~dp0 >nul
+
 :::: docker-mcp.bat: A wrapper for running the MCP wrapper inside Docker.
 :::: This script reads from stdin and pipes it to 'python mcp.py' inside the container.
 
@@ -63,4 +66,6 @@ if not "%IS_RUNNING%"=="true" (
 
 :::: Always execute the command via exec. Use -i for stdin.
 docker exec -i %MCP_CONTAINER_NAME% python mcp.py %*
-exit /b %ERRORLEVEL%
+set EXITCODE=%ERRORLEVEL%
+popd >nul
+exit /b %EXITCODE%

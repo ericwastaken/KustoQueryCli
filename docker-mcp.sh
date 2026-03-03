@@ -5,7 +5,11 @@
 
 set -e
 
-ENV_FILE="$(dirname "$0")/.env"
+# Always execute from the directory where this script resides so relative paths work.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+cd "$SCRIPT_DIR"
+
+ENV_FILE="$SCRIPT_DIR/.env"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Error: .env file not found at $ENV_FILE" >&2
