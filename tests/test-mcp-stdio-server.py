@@ -52,42 +52,6 @@ def pretty(title: str, payload: dict | None) -> None:
     else:
         print(json.dumps(payload, indent=2))
 
-
-def default_sequence(proc: subprocess.Popen) -> None:
-    # initialize
-    write_frame(
-        proc,
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "kusto-query-cli-test", "version": "1.0"},
-            },
-        },
-    )
-    pretty("initialize", read_frame(proc))
-
-    # tools/list
-    write_frame(proc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
-    list_resp = read_frame(proc)
-    pretty("tools/list", list_resp)
-
-    # tools/call AUTH_STATUS
-    write_frame(
-        proc,
-        {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "tools/call",
-            "params": {"name": "AUTH_STATUS", "arguments": {}},
-        },
-    )
-    pretty("tools/call AUTH_STATUS", read_frame(proc))
-
-
 def run_sequence(
     server: str,
     use_docker: bool,
