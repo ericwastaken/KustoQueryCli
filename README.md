@@ -1,5 +1,10 @@
 # Azure Data Explorer (ADX) Query Utility
 
+## MCP Server Quickstart
+
+If you want to use this project as an MCP stdio server with an AI client, start here:
+- Read the Quickstart: [README-MCP-QUICKSTART.md](README-MCP-QUICKSTART.md)
+
 This utility allows you to execute queries against an Azure Data Explorer (ADX) database and output the results in 
 various formats directly to stdout. The script is written in Python and uses the `azure-kusto-data` package to 
 interact with the ADX cluster.

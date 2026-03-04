@@ -12,22 +12,21 @@ cd "$SCRIPT_DIR"
 
 ENV_FILE="$SCRIPT_DIR/.env"
 
-# Resolve version tag priority: env var > .env > mcp-wrapper-version > dev
-if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
-  if [ -f "$ENV_FILE" ]; then
-    KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
-  fi
-fi
-
-if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
-  if [ -f "$SCRIPT_DIR/mcp-wrapper-version" ]; then
-    KUSTO_QUERY_CLI_VERSION=$(tr -d ' \t\r\n' < "$SCRIPT_DIR/mcp-wrapper-version")
-  else
-    KUSTO_QUERY_CLI_VERSION="dev"
-  fi
-fi
-
-IMAGE_TAG="kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}"
+# Parse arguments: support --force for rebuild; pass all others to the server
+FORCE_REBUILD=0
+PASSTHRU=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force)
+      FORCE_REBUILD=1
+      shift
+      ;;
+    *)
+      PASSTHRU+=("$1")
+      shift
+      ;;
+  esac
+done
 
 # Optional explicit container name. If not provided, we let Docker choose a random
 # name so multiple instances can run concurrently.
@@ -45,23 +44,17 @@ if [ -z "$MCP_LOG_PAYLOADS" ] && [ -f "$ENV_FILE" ]; then
   MCP_LOG_PAYLOADS=$(grep -E '^MCP_LOG_PAYLOADS=' "$ENV_FILE" | cut -d'=' -f2)
 fi
 
-image_exists() {
-  docker image inspect "$IMAGE_TAG" > /dev/null 2>&1
-}
-
 # Ensure we are in the project root
 if [ ! -f "Dockerfile" ]; then
   echo "Error: Dockerfile not found in the current directory." >&2
   exit 1
 fi
 
-# Check if image needs building
-if ! image_exists; then
-  echo "Image $IMAGE_TAG not found. Building now..." >&2
-  if ! docker build -t "$IMAGE_TAG" .; then
-    echo "Error: Failed to build $IMAGE_TAG." >&2
-    exit 1
-  fi
+# Build (if needed) and retrieve the IMAGE_TAG from the build helper to avoid duplication
+if [ "$FORCE_REBUILD" -eq 1 ]; then
+  IMAGE_TAG="$("$SCRIPT_DIR/docker-mcp-build.sh" --force)"
+else
+  IMAGE_TAG="$("$SCRIPT_DIR/docker-mcp-build.sh")"
 fi
 
 # Prepare optional --name flag only if MCP_CONTAINER_NAME is explicitly set
@@ -86,4 +79,4 @@ exec docker run --rm -i \
   "${ENV_FLAGS[@]}" \
   -v "${AZURE_STATE_VOLUME}:/root/.azure" \
   "$IMAGE_TAG" \
-  python mcp-stdio-server.py "$@"
+  python mcp-stdio-server.py "${PASSTHRU[@]}"

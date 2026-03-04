@@ -3,6 +3,8 @@
 This repository includes an MCP stdio server implementation that exposes Kusto (ADX) capabilities to AI clients over the 
 Model Context Protocol.
 
+> Quickstart: If you just want to get running fast with Docker and an MCP client, see [README-MCP-QUICKSTART.md](README-MCP-QUICKSTART.md).
+
 ## What this server provides
 
 - A lightweight stdio server (`mcp-stdio-server.py`) built on the official Python MCP SDK
@@ -36,6 +38,30 @@ Notes:
     - Bash: `AZURE_STATE_VOLUME=my-azure-state ./docker-mcp.sh`
     - Windows: `set AZURE_STATE_VOLUME=my-azure-state && docker-mcp.bat`
     - To isolate credentials per container, set a unique volume per instance (or point to an empty one).
+
+### Build helper and force rebuilds
+
+- Build-only helper scripts:
+  - Bash/macOS/Linux: `./docker-mcp-build.sh`
+  - Windows CMD: `docker-mcp-build.bat`
+- These scripts resolve the image version in this order: `KUSTO_QUERY_CLI_VERSION` env var > `.env` file > `mcp-wrapper-version` file > `dev`.
+- On success, they print the resolved Docker image tag (e.g., `kusto-query-cli:0.3.1`) to stdout so other scripts can consume it.
+
+Force rebuild flag:
+
+- Pass `--force` to either the build helper or the wrapper scripts to rebuild the image even if it already exists:
+
+  - Bash/macOS/Linux:
+    - Build only: `./docker-mcp-build.sh --force`
+    - Run via wrapper: `./docker-mcp.sh --force`
+  - Windows CMD:
+    - Build only: `docker-mcp-build.bat --force`
+    - Run via wrapper: `docker-mcp.bat --force`
+
+- What `--force` does:
+  - Removes the existing image for the resolved version tag (if present) and then rebuilds it.
+  - All status messages are written to stderr; only the final image tag is written to stdout by the build helpers.
+  - Any additional arguments you pass alongside `--force` to the wrapper scripts are forwarded to `python mcp-stdio-server.py` as usual.
 
 For local testing without Docker:
 
