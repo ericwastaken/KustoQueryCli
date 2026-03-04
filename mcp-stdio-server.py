@@ -366,11 +366,14 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             if not rel:
                 raise ValueError("Missing 'path' argument")
             base = os.path.join(_script_dir, "schemas")
-            target = os.path.normpath(os.path.join(base, rel))
-            if not target.startswith(base) or not os.path.isfile(target):
+            # Use absolute normalized paths and commonpath to prevent traversal or prefix tricks
+            base_abs = os.path.abspath(base)
+            target = os.path.normpath(os.path.join(base_abs, rel))
+            target_abs = os.path.abspath(target)
+            if os.path.commonpath([base_abs, target_abs]) != base_abs or not os.path.isfile(target_abs):
                 raise FileNotFoundError(f"Schema not found: {rel}")
             _LOGGER.debug("[%s] GET_SCHEMA path=%s", req_id, rel)
-            with open(target, "r", encoding="utf-8") as f:
+            with open(target_abs, "r", encoding="utf-8") as f:
                 result = json.load(f)
             # Structured completion + response markers
             try:
@@ -400,11 +403,13 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             if not fname:
                 raise ValueError("Missing 'name' argument")
             base = os.path.join(_script_dir, "examples")
-            target = os.path.normpath(os.path.join(base, fname))
-            if not target.startswith(base) or not os.path.isfile(target):
+            base_abs = os.path.abspath(base)
+            target = os.path.normpath(os.path.join(base_abs, fname))
+            target_abs = os.path.abspath(target)
+            if os.path.commonpath([base_abs, target_abs]) != base_abs or not os.path.isfile(target_abs):
                 raise FileNotFoundError(f"Example not found: {fname}")
             _LOGGER.debug("[%s] GET_EXAMPLE name=%s", req_id, fname)
-            with open(target, "r", encoding="utf-8") as f:
+            with open(target_abs, "r", encoding="utf-8") as f:
                 result = json.load(f)
             # Structured completion + response markers
             try:

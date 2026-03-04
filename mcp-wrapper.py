@@ -225,7 +225,9 @@ def create_envelope(action, status="success", data=None, error=None, start_time=
         "status": status,
         "action": action,
         "data": data if data is not None else {},
-        "error": error if error is not None else {},
+        # Per response-envelope.schema.json, error must be either null or a valid error object
+        # Use None (serialized as JSON null) when no error is provided
+        "error": error if error is not None else None,
         "metadata": metadata,
     }
     return response
