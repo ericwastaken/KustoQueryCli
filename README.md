@@ -302,7 +302,7 @@ The `az login` command requires opening a browser for authentication.
     az login --use-device-code
     ```
 *   Alternatively, ensure your browser is configured to use the proxy or has access to the Microsoft login endpoints required 
-    for your ADX cluster. The Firefox browser is known to work with easily with a proxy. In Firefox, open settings then search 
+    for your ADX cluster. The Firefox browser is known to work easily with a proxy. In Firefox, open settings then search 
     for "proxy" and set the proxy to "Manual proxy configuration" to the SOCKS5 server address and port.
 
 > **Note:** The first time you run the script, it might take a few seconds for authentication to complete. Subsequent 
