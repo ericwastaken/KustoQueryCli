@@ -297,7 +297,7 @@ python k2json.py --queryFile "./queries/query.kql" --database "my_db" --adxUrl "
 
 The `az login` command requires opening a browser for authentication.
 *   If your browser is not configured to use the same proxy, the authentication might fail.
-*   In such cases, you can open the URL provided your phone or another computer with network access to the cluster network:
+*   In such cases, you can open the URL provided on your phone or another computer with network access to the cluster network:
     ```bash
     az login --use-device-code
     ```
