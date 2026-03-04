@@ -50,7 +50,7 @@ Initiates or verifies Azure CLI authentication.
   }
   ```
 - Parameters:
-    - `subscription_id` (string, required): The target Azure subscription ID. The wrapper will attempt to 
+    - `subscription_id` (string, optional): The target Azure subscription ID. The wrapper will attempt to 
       select this subscription during the login process or switch to it if already authenticated.
 - Behavior:
     - If already authenticated, returns current subscription and tenant details.
