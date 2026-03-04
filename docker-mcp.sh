@@ -28,8 +28,22 @@ if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
 fi
 
 IMAGE_TAG="kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}"
-MCP_CONTAINER_NAME="kusto-query-cli-mcp"
-AZURE_STATE_VOLUME="${MCP_CONTAINER_NAME}-azure-state"
+
+# Optional explicit container name. If not provided, we let Docker choose a random
+# name so multiple instances can run concurrently.
+MCP_CONTAINER_NAME="${MCP_CONTAINER_NAME:-}"
+
+# Use a stable/shared Azure CLI state volume by default so auth persists across runs.
+# Can be overridden by setting AZURE_STATE_VOLUME.
+AZURE_STATE_VOLUME="${AZURE_STATE_VOLUME:-kusto-query-cli-mcp-azure-state}"
+
+# Optional: allow overriding logging controls via .env if not set in the environment
+if [ -z "$MCP_LOG_LEVEL" ] && [ -f "$ENV_FILE" ]; then
+  MCP_LOG_LEVEL=$(grep -E '^MCP_LOG_LEVEL=' "$ENV_FILE" | cut -d'=' -f2)
+fi
+if [ -z "$MCP_LOG_PAYLOADS" ] && [ -f "$ENV_FILE" ]; then
+  MCP_LOG_PAYLOADS=$(grep -E '^MCP_LOG_PAYLOADS=' "$ENV_FILE" | cut -d'=' -f2)
+fi
 
 image_exists() {
   docker image inspect "$IMAGE_TAG" > /dev/null 2>&1
@@ -50,14 +64,26 @@ if ! image_exists; then
   fi
 fi
 
-# If a stale container exists, remove it so the foreground run can attach the name.
-if docker ps -a --format '{{.Names}}' | grep -qx "$MCP_CONTAINER_NAME"; then
-  docker rm -f "$MCP_CONTAINER_NAME" >/dev/null 2>&1 || true
+# Prepare optional --name flag only if MCP_CONTAINER_NAME is explicitly set
+NAME_FLAG=()
+if [ -n "$MCP_CONTAINER_NAME" ]; then
+  NAME_FLAG=(--name "$MCP_CONTAINER_NAME")
+fi
+
+# Optional env passthrough for logging controls
+# If set in the host environment, propagate to the container.
+ENV_FLAGS=()
+if [ -n "$MCP_LOG_LEVEL" ]; then
+  ENV_FLAGS+=( -e "MCP_LOG_LEVEL=$MCP_LOG_LEVEL" )
+fi
+if [ -n "$MCP_LOG_PAYLOADS" ]; then
+  ENV_FLAGS+=( -e "MCP_LOG_PAYLOADS=$MCP_LOG_PAYLOADS" )
 fi
 
 # Run the MCP stdio server in the foreground with stdio attached
 exec docker run --rm -i \
-  --name "$MCP_CONTAINER_NAME" \
+  "${NAME_FLAG[@]}" \
+  "${ENV_FLAGS[@]}" \
   -v "${AZURE_STATE_VOLUME}:/root/.azure" \
   "$IMAGE_TAG" \
   python mcp-stdio-server.py "$@"

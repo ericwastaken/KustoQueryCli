@@ -44,11 +44,19 @@ def check_azure_cli_logged_in():
             "Error: Not logged in to Azure CLI. Please log in using 'az login' before running this script.")
 
 
-def is_azure_cli_installed(os_name):
+def is_azure_cli_installed(os_name: str | None = None):
     """
     Checks if the Azure CLI ('az') is installed and available in the system path.
+
+    Parameters:
+        os_name: Optional explicit OS name (e.g., 'windows', 'linux', 'darwin').
+                 If not provided, it will be detected automatically.
     """
     try:
+        # Detect OS if not provided
+        if not os_name:
+            os_name = platform.system().lower()
+
         # Command to check Azure CLI version
         command = "az --version"
 

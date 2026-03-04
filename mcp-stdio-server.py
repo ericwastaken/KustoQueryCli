@@ -3,6 +3,8 @@ import os
 import sys
 import time
 import json
+import logging
+import uuid
 from typing import Any, Optional
 from datetime import datetime, date, time as dtime
 from importlib.machinery import SourceFileLoader
@@ -72,9 +74,34 @@ _spec.loader.exec_module(kqc_wrapper)  # type: ignore[attr-defined]
 server = Server("kusto-query-cli")
 
 
+# ---- Logging setup ----
+def _init_logging() -> logging.Logger:
+    """Initialize a stderr logger for the MCP server.
+
+    Controlled via environment variables:
+    - MCP_LOG_LEVEL: DEBUG, INFO, WARNING, ERROR (default: INFO)
+    - MCP_LOG_PAYLOADS: true/false to include full tool arguments/results at DEBUG level (default: false)
+    """
+    level_str = os.environ.get("MCP_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_str, logging.INFO)
+
+    logger = logging.getLogger("mcp_stdio_server")
+    if not logger.handlers:
+        handler = logging.StreamHandler(stream=sys.stderr)
+        fmt = "%(asctime)s %(levelname)s [%(process)d] %(name)s: %(message)s"
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+    logger.setLevel(level)
+    return logger
+
+
+_LOGGER = _init_logging()
+
+
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
     """Expose supported actions as MCP tools using canonical JSON Schemas and Examples."""
+    _LOGGER.debug("list_tools called")
 
     def _schema_params_for(action: str) -> dict:
         """Load the canonical request schema for an action and return its `params` schema.
@@ -163,6 +190,7 @@ async def list_tools() -> list[types.Tool]:
         )
     )
 
+    _LOGGER.info("list_tools returning %d tools", len(tools))
     return tools
 
 
@@ -170,6 +198,29 @@ async def list_tools() -> list[types.Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]):
     """Dispatch MCP tool calls to the existing action handlers."""
     start = time.time()
+    req_id = str(uuid.uuid4())
+
+    # Configuration flags
+    log_payloads = _to_bool(os.environ.get("MCP_LOG_PAYLOADS"), False)
+
+    try:
+        # Log request receipt
+        summary_args = {k: ("***" if k.lower().endswith("token") else v) for k, v in (arguments or {}).items()}
+        if log_payloads and _LOGGER.isEnabledFor(logging.DEBUG):
+            try:
+                _LOGGER.debug("[%s] call_tool received: %s args=%s", req_id, name, json.dumps(summary_args))
+            except Exception:
+                _LOGGER.debug("[%s] call_tool received: %s (args not JSON-serializable)", req_id, name)
+        else:
+            _LOGGER.info("[%s] call_tool received: %s", req_id, name)
+        # High-level processing marker (visible at INFO); detailed flow at DEBUG
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("[%s] %s processing start", req_id, name)
+        else:
+            _LOGGER.info("[%s] %s processing", req_id, name)
+    except Exception:
+        # Never fail due to logging
+        pass
     
     def _json_sanitize(value: Any) -> Any:
         """Recursively convert values to JSON-serializable types.
@@ -188,12 +239,41 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             except Exception:
                 return str(value)
 
-        # pandas.Timestamp without importing pandas eagerly
+        # pandas support (without requiring pandas to be installed)
+        # - pandas.Timestamp -> ISO string (handled above by isoformat duck-typing)
+        # - pandas.Series -> list (or dict if named index)
+        # - pandas.DataFrame -> list of dicts (records)
         try:
-            # pandas.Timestamp has an attribute 'to_pydatetime' and 'isoformat'
-            # Check by duck-typing to avoid hard dep if pandas isn't installed
+            # Timestamp duck-typing: many objects have isoformat; restrict by class name
             if hasattr(value, "isoformat") and value.__class__.__name__ == "Timestamp":
                 return value.isoformat()
+
+            # Import pandas lazily and handle DataFrame/Series explicitly when available
+            try:
+                import pandas as pd  # type: ignore
+            except Exception:  # pandas not available
+                pd = None  # type: ignore
+
+            if pd is not None:
+                if isinstance(value, pd.DataFrame):
+                    try:
+                        return [
+                            {str(k): _json_sanitize(v) for k, v in row.items()}
+                            for row in value.to_dict(orient="records")
+                        ]
+                    except Exception:
+                        # Fallback to CSV-like string if conversion fails
+                        return value.to_json(orient="records")
+                if isinstance(value, pd.Series):
+                    try:
+                        # Convert to a primitive list preserving order
+                        return [_json_sanitize(v) for v in value.tolist()]  # type: ignore[attr-defined]
+                    except Exception:
+                        # Fallback to dict representation
+                        try:
+                            return {str(k): _json_sanitize(v) for k, v in value.to_dict().items()}
+                        except Exception:
+                            return str(value)
         except Exception:
             pass
 
@@ -244,14 +324,27 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             return None
     try:
         if name == "AUTH_STATUS":
+            _LOGGER.debug("[%s] AUTH_STATUS start", req_id)
             env = kqc_wrapper.handle_auth_status(start)
         elif name == "LOGIN":
+            _LOGGER.debug("[%s] LOGIN start", req_id)
             env = kqc_wrapper.handle_login(start, arguments.get("subscription_id"))
         elif name == "LOGOUT":
+            _LOGGER.debug("[%s] LOGOUT start", req_id)
             env = kqc_wrapper.handle_logout(start)
         elif name == "LIST_SUBSCRIPTIONS":
+            _LOGGER.debug("[%s] LIST_SUBSCRIPTIONS start", req_id)
             env = kqc_wrapper.handle_list_subscriptions(start, arguments.get("subscription_id"))
         elif name == "QUERY":
+            if log_payloads and _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "[%s] QUERY params cluster_url=%s database=%s socks5_proxy=%s socks5_dns=%s",
+                    req_id,
+                    arguments.get("cluster_url"),
+                    arguments.get("database"),
+                    arguments.get("socks5_proxy"),
+                    _to_bool(arguments.get("socks5_dns"), False),
+                )
             env = kqc_wrapper.handle_query(
                 {
                     # Forward arguments using the key names expected by the wrapper
@@ -266,6 +359,7 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             )
         elif name == "MANIFEST":
             # Mirror MANIFEST behavior from wrapper for convenience (no params)
+            _LOGGER.debug("[%s] MANIFEST start", req_id)
             env = kqc_wrapper.handle_manifest(start)
         elif name == "GET_SCHEMA":
             rel = str(arguments.get("path", "")).lstrip("/\\")
@@ -275,8 +369,32 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             target = os.path.normpath(os.path.join(base, rel))
             if not target.startswith(base) or not os.path.isfile(target):
                 raise FileNotFoundError(f"Schema not found: {rel}")
+            _LOGGER.debug("[%s] GET_SCHEMA path=%s", req_id, rel)
             with open(target, "r", encoding="utf-8") as f:
-                return json.load(f)
+                result = json.load(f)
+            # Structured completion + response markers
+            try:
+                dur_ms = int((time.time() - start) * 1000)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s processed in %dms", req_id, name, dur_ms)
+                else:
+                    _LOGGER.info("[%s] %s processed in %dms", req_id, name, dur_ms)
+            except Exception:
+                pass
+            # At INFO: just note response sent; at DEBUG: note response sent (payload logged separately if enabled)
+            try:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s response sent", req_id, name)
+                    if log_payloads:
+                        try:
+                            _LOGGER.debug("[%s] %s result=%s", req_id, name, json.dumps(result))
+                        except Exception:
+                            _LOGGER.debug("[%s] %s result=<unserializable>", req_id, name)
+                else:
+                    _LOGGER.info("[%s] %s response sent", req_id, name)
+            except Exception:
+                pass
+            return result
         elif name == "GET_EXAMPLE":
             fname = str(arguments.get("name", "")).lstrip("/\\")
             if not fname:
@@ -285,8 +403,31 @@ async def call_tool(name: str, arguments: dict[str, Any]):
             target = os.path.normpath(os.path.join(base, fname))
             if not target.startswith(base) or not os.path.isfile(target):
                 raise FileNotFoundError(f"Example not found: {fname}")
+            _LOGGER.debug("[%s] GET_EXAMPLE name=%s", req_id, fname)
             with open(target, "r", encoding="utf-8") as f:
-                return json.load(f)
+                result = json.load(f)
+            # Structured completion + response markers
+            try:
+                dur_ms = int((time.time() - start) * 1000)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s processed in %dms", req_id, name, dur_ms)
+                else:
+                    _LOGGER.info("[%s] %s processed in %dms", req_id, name, dur_ms)
+            except Exception:
+                pass
+            try:
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s response sent", req_id, name)
+                    if log_payloads:
+                        try:
+                            _LOGGER.debug("[%s] %s result=%s", req_id, name, json.dumps(result))
+                        except Exception:
+                            _LOGGER.debug("[%s] %s result=<unserializable>", req_id, name)
+                else:
+                    _LOGGER.info("[%s] %s response sent", req_id, name)
+            except Exception:
+                pass
+            return result
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -294,12 +435,47 @@ async def call_tool(name: str, arguments: dict[str, Any]):
         if env.get("status") == "success":
             # Ensure the data we pass to the MCP SDK is JSON-serializable
             data = env.get("data", {})
-            return _json_sanitize(data)
+            result = _json_sanitize(data)
+            try:
+                dur_ms = int((time.time() - start) * 1000)
+                # Mark processing completion at both INFO/DEBUG
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s processed in %dms", req_id, name, dur_ms)
+                else:
+                    _LOGGER.info("[%s] %s processed in %dms", req_id, name, dur_ms)
+                if log_payloads and _LOGGER.isEnabledFor(logging.DEBUG):
+                    # Log the entire received envelope and result without truncation when payload logging is enabled
+                    try:
+                        _LOGGER.debug("[%s] %s envelope=%s", req_id, name, json.dumps(env))
+                    except Exception:
+                        # Fall back to a sanitized view if any non-JSON types slip through
+                        try:
+                            _LOGGER.debug("[%s] %s envelope=%s", req_id, name, json.dumps(_json_sanitize(env)))
+                        except Exception:
+                            _LOGGER.debug("[%s] %s envelope=<unserializable>", req_id, name)
+                    _LOGGER.debug("[%s] %s success in %dms result=%s", req_id, name, dur_ms, json.dumps(result))
+                else:
+                    # Summarize size/type
+                    size = None
+                    try:
+                        size = len(json.dumps(result))
+                    except Exception:
+                        pass
+                    _LOGGER.info("[%s] %s success in %dms (result_size=%s)", req_id, name, dur_ms, size if size is not None else "n/a")
+                # Final marker that the response was sent (regardless of payload logging)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("[%s] %s response sent", req_id, name)
+                else:
+                    _LOGGER.info("[%s] %s response sent", req_id, name)
+            except Exception:
+                pass
+            return result
         raise RuntimeError((env.get("error") or {}).get("message", "Tool failed"))
     except Exception as e:
-        # Minimal logging to stderr for diagnostics without polluting stdio channel
+        # Structured error logging to stderr without polluting stdio channel
         try:
-            print(f"mcp-sdk server: tool '{name}' failed: {e}", file=sys.stderr)
+            dur_ms = int((time.time() - start) * 1000)
+            _LOGGER.exception("[%s] %s failed in %dms: %s", req_id, name, dur_ms, e)
         except Exception:
             pass
         raise
@@ -307,19 +483,39 @@ async def call_tool(name: str, arguments: dict[str, Any]):
 
 async def run() -> None:
     version = kqc_wrapper.load_version()
+    # Attempt to read protocol version for logging context
+    proto_ver = None
+    try:
+        with open(os.path.join(_script_dir, "mcp-protocol-version"), "r", encoding="utf-8") as f:
+            proto_ver = f.read().strip()
+    except Exception:
+        proto_ver = None
+
+    _LOGGER.info(
+        "Starting MCP stdio server name=%s version=%s protocol=%s python=%s",
+        "kusto-query-cli",
+        version,
+        proto_ver or "unknown",
+        sys.version.split()[0],
+    )
+
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="kusto-query-cli",
-                server_version=version,
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
+        _LOGGER.info("MCP stdio streams established; server is ready to accept requests")
+        try:
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="kusto-query-cli",
+                    server_version=version,
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
                 ),
-            ),
-        )
+            )
+        finally:
+            _LOGGER.info("Server.run has completed; shutting down")
 
 
 if __name__ == "__main__":

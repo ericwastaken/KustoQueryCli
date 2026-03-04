@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from lib.KustoHandler import execute_adx_query
 from lib.AzureCliHelper import is_azure_cli_installed
+import select
 
 """
 mcp-wrapper.py: A Model Context Protocol (MCP) wrapper for Azure Data Explorer (ADX).
@@ -258,7 +259,7 @@ def handle_manifest(start_time: float):
         )
 
 def handle_auth_status(start_time: float):
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         return create_envelope(
             action="AUTH_STATUS",
             status="error",
@@ -310,7 +311,7 @@ def _start_login_background_monitor(subscription_id: str | None, timeout_seconds
     return result
 
 def handle_login(start_time: float, subscription_id: str | None):
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         return create_envelope(
             action="LOGIN",
             status="error",
@@ -354,16 +355,146 @@ def handle_login(start_time: float, subscription_id: str | None):
             authenticated=True,
         )
 
-    # Not authenticated: start device code login
-    rc, out, err = run_command(["az", "login", "--use-device-code", "--only-show-errors"])
-    if rc != 0:
+    # Not authenticated: start device code login in a non-blocking way so MCP call does not hang
+    # Using Popen to avoid waiting for the interactive device-code flow to complete.
+
+    def _read_device_code_from_proc(proc: subprocess.Popen, timeout_seconds: float = 4.0) -> tuple[str | None, str | None]:
+        """
+        Best-effort, strictly non-blocking attempt to capture the Azure CLI device-code and URL
+        emitted shortly after starting `az login --use-device-code`.
+
+        Uses fd-level non-blocking reads with select() and a hard deadline. Never blocks the caller
+        longer than `timeout_seconds` (defaults to a small value). Returns (verification_url, device_code)
+        or (None, None) if not yet available.
+        """
+        try:
+            # Prepare raw fds (avoid buffered .read which may block) and set non-blocking if supported
+            fds: list[int] = []
+            fd_map: dict[int, str] = {}
+            if proc.stderr is not None:
+                try:
+                    fd = proc.stderr.fileno()
+                    try:
+                        os.set_blocking(fd, False)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    fds.append(fd)
+                    fd_map[fd] = "err"
+                except Exception:
+                    pass
+            if proc.stdout is not None:
+                try:
+                    fd = proc.stdout.fileno()
+                    try:
+                        os.set_blocking(fd, False)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    fds.append(fd)
+                    fd_map[fd] = "out"
+                except Exception:
+                    pass
+
+            if not fds:
+                return None, None
+
+            deadline = time.time() + max(0.25, float(timeout_seconds))
+            bufs: dict[str, bytearray] = {"out": bytearray(), "err": bytearray()}
+            url: str | None = None
+            code: str | None = None
+
+            url_re = re.compile(r"https?://(?:\w+\.)*microsoft\.com/\S+", re.IGNORECASE)
+            code_re = re.compile(r"\b([A-Z0-9]{4,}(?:-[A-Z0-9]{4,})*)\b")
+            hint_re = re.compile(r"enter\s+the\s+code\s+([A-Z0-9-]{4,})|code\s*:\s*([A-Z0-9-]{4,})", re.IGNORECASE)
+
+            while time.time() < deadline and fds:
+                try:
+                    rlist, _, _ = select.select(fds, [], [], 0.15)
+                except Exception:
+                    # Select may fail in some rare environments; break early rather than risk blocking
+                    break
+
+                if not rlist:
+                    continue
+
+                for fd in list(rlist):
+                    try:
+                        chunk = os.read(fd, 4096)
+                    except BlockingIOError:
+                        continue
+                    except Exception:
+                        # On error, stop watching this fd
+                        try:
+                            fds.remove(fd)
+                        except Exception:
+                            pass
+                        continue
+
+                    if not chunk:
+                        # EOF on this fd
+                        try:
+                            fds.remove(fd)
+                        except Exception:
+                            pass
+                        continue
+
+                    bufs[fd_map.get(fd, "out")].extend(chunk)
+
+                # Parse whatever we have so far
+                try:
+                    s = (bufs["out"] + bufs["err"]).decode("utf-8", "replace")
+                except Exception:
+                    s = ""
+
+                if url is None:
+                    m_url = url_re.search(s)
+                    if m_url:
+                        url = m_url.group(0)
+                if code is None:
+                    m_hint = hint_re.search(s)
+                    if m_hint:
+                        code = m_hint.group(1) or m_hint.group(2)
+                    if code is None:
+                        m_code = code_re.search(s)
+                        if m_code and len(m_code.group(1)) >= 6 and "http" not in m_code.group(1).lower():
+                            code = m_code.group(1)
+
+                if url or code:
+                    break
+
+            return url, code
+        except Exception:
+            return None, None
+    try:
+        # Note: this process will keep running until the user completes authentication.
+        # We do not wait for it here. Any device-code instructions will be printed by az to stderr.
+        proc = subprocess.Popen(
+            ["az", "login", "--use-device-code", "--only-show-errors"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        _ = proc  # keep reference for clarity; process runs independently
+    except FileNotFoundError as e:
         return create_envelope(
             action="LOGIN",
             status="error",
             error={
                 "type": "authentication",
                 "code": "AZ_LOGIN_FAILED",
-                "message": err or out or "Failed to start device code login",
+                "message": str(e),
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+    except Exception as e:
+        return create_envelope(
+            action="LOGIN",
+            status="error",
+            error={
+                "type": "authentication",
+                "code": "AZ_LOGIN_FAILED",
+                "message": f"Failed to start device code login: {e}",
                 "retryable": True,
                 "severity": "medium",
             },
@@ -371,34 +502,31 @@ def handle_login(start_time: float, subscription_id: str | None):
             authenticated=False,
         )
 
-    # Try to parse device code info from stderr/out when available
-    # Azure CLI prints something like: "To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code ABCD-EFGH to authenticate."
-    verification_url = None
-    device_code = None
-    m = re.search(r"open\s+(https?://\S+)|enter the code\s+([A-Z0-9-]{4,})", (out + "\n" + err))
-    if m:
-        # The regex has two groups; collect whichever matched
-        verification_url = m.group(1) if m.group(1) else verification_url
-        device_code = m.group(2) if m.group(2) else device_code
+    # Try to capture device code quickly (best-effort, bounded by small timeout)
+    verification_url, device_code = _read_device_code_from_proc(proc, timeout_seconds=4.0)
 
     # Start a background monitor to finalize login and select subscription if provided
     _start_login_background_monitor(subscription_id)
 
+    # Provide well-known verification URL if CLI didn't emit it yet
     return create_envelope(
         action="LOGIN",
         status="success",
         data={
             "authenticated": False,
-            "verification_url": verification_url,
+            "verification_url": verification_url or "https://microsoft.com/devicelogin",
             "device_code": device_code,
-            "message": "Complete device login in the browser; authentication will be detected automatically.",
+            "message": (
+                "A device-code login has been initiated. Open the verification URL and enter the code shown here. "
+                "Authentication will be detected automatically."
+            ),
         },
         start_time=start_time,
         authenticated=False,
     )
 
 def handle_logout(start_time: float):
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         return create_envelope(
             action="LOGOUT",
             status="error",
@@ -445,7 +573,7 @@ def handle_logout(start_time: float):
     )
 
 def handle_list_subscriptions(start_time: float, subscription_id: str | None):
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         return create_envelope(
             action="LIST_SUBSCRIPTIONS",
             status="error",
@@ -489,7 +617,7 @@ def _validate_query_params(params: dict) -> tuple[bool, str | None]:
     return True, None
 
 def handle_query(params: dict, start_time: float):
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         return create_envelope(
             action="QUERY",
             status="error",
@@ -558,7 +686,7 @@ def handle_query(params: dict, start_time: float):
 
 def main():
     start_time = time.time()
-    if not is_azure_cli_installed():
+    if not is_azure_cli_installed(platform.system().lower()):
         print_json(
             create_envelope(
                 action="INIT",

@@ -110,7 +110,10 @@ Executes a Kusto query against a specific cluster and database.
     - `database` (string, required): The target database name.
     - `cluster_url` (string, required): The ADX cluster URL.
     - `socks5_proxy` (string, optional): SOCKS5 proxy in `host:port` format.
-    - `socks5_dns` (boolean, optional): Whether to use proxy for DNS (defaults to `false`).
+    - `socks5_dns` (boolean|string|integer, optional): Whether to use proxy for DNS (defaults to `false`). Accepts:
+      - Booleans: `true` / `false`
+      - Integers: `1` / `0`
+      - Strings: `"true"`, `"false"`, `"yes"`, `"no"`, `"on"`, `"off"` (case-insensitive)
 - Response: Standard JSON envelope containing a list of objects (rows) in the `data.result` field.
 
 ## Global Response Envelope

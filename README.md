@@ -337,3 +337,7 @@ To run this command against the Help cluster, use the following command:
 python k2json.py --queryFile "./queries/example-find-my-partner-simple-query.kql" --database "FindMyPartner" --adxUrl "https://help.kusto.windows.net"
 ```
 
+## ROADMAP
+[] Implement Azure subscription switch for users with access to multiple subscriptions.
+[] Implement multi-azure account support so that users can hold multiple accounts and associate each query with a 
+   specific account (and credentials.) Might not be supported by the Azure CLI.
