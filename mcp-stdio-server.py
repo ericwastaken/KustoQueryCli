@@ -2,12 +2,13 @@ import asyncio
 import os
 import sys
 import time
-from typing import Any
+import json
+from typing import Any, Optional
 from datetime import datetime, date, time as dtime
 from importlib.machinery import SourceFileLoader
 from importlib import util as importlib_util
 
-# Ensure the installed 'mcp' SDK package is imported instead of the local 'mcp.py'
+# Ensure the installed 'mcp' SDK package is imported instead of any local modules
 # by moving the CWD placeholder ('') or script directory to the end of sys.path
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 try:
@@ -59,7 +60,8 @@ def _to_bool(value: Any, default: bool = False) -> bool:
 
 
 # Load the existing action-based tool implementation without modifying it
-_wrapper_path = os.path.join(_script_dir, "mcp.py")
+# Load the action wrapper (renamed to mcp-wrapper.py)
+_wrapper_path = os.path.join(_script_dir, "mcp-wrapper.py")
 _loader = SourceFileLoader("kqc_wrapper", _wrapper_path)
 _spec = importlib_util.spec_from_loader(_loader.name, _loader)
 kqc_wrapper = importlib_util.module_from_spec(_spec)
@@ -72,79 +74,96 @@ server = Server("kusto-query-cli")
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
-    """Expose supported actions as MCP tools."""
-    return [
+    """Expose supported actions as MCP tools using canonical JSON Schemas and Examples."""
+
+    def _schema_params_for(action: str) -> dict:
+        """Load the canonical request schema for an action and return its `params` schema.
+
+        Falls back to an empty object schema if the file is missing or invalid.
+        """
+        try:
+            schema_path = os.path.join(_script_dir, "schemas", "actions", f"{action}.request.schema.json")
+            with open(schema_path, "r", encoding="utf-8") as f:
+                root = json.load(f)
+            params = (root.get("properties") or {}).get("params")
+            if isinstance(params, dict):
+                # Ensure it's a JSON Schema object
+                return params
+        except Exception:
+            pass
+        return {"type": "object", "properties": {}, "additionalProperties": False}
+
+    def _example_hint_for(action: str) -> Optional[str]:
+        """Return an examples/<ACTION>.* file hint if present to guide clients."""
+        try:
+            ex_dir = os.path.join(_script_dir, "examples")
+            if not os.path.isdir(ex_dir):
+                return None
+            prefix = action.upper()
+            for name in sorted(os.listdir(ex_dir)):
+                if name.upper().startswith(prefix):
+                    return name
+        except Exception:
+            return None
+        return None
+
+    tools: list[types.Tool] = []
+
+    # Core action tools
+    for action, desc in [
+        ("AUTH_STATUS", "Check Azure CLI authentication status"),
+        ("LOGIN", "Start device-code login flow (optional subscription_id)"),
+        ("LOGOUT", "Logout Azure CLI session"),
+        ("LIST_SUBSCRIPTIONS", "List accessible subscriptions (optional subscription_id)"),
+        ("QUERY", "Run a Kusto query against a cluster/database"),
+        ("MANIFEST", "Return the server capability manifest"),
+    ]:
+        hint = _example_hint_for(action)
+        full_desc = desc if not hint else f"{desc} (see examples/{hint})"
+        tools.append(
+            types.Tool(
+                name=action,
+                description=full_desc,
+                inputSchema=_schema_params_for(action),
+            )
+        )
+
+    # Introspection tools for schemas/examples to avoid duplicating information
+    tools.append(
         types.Tool(
-            name="AUTH_STATUS",
-            description="Check Azure CLI authentication status",
-            inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
-        ),
-        types.Tool(
-            name="LOGIN",
-            description="Start device-code login flow (optional subscription_id)",
-            inputSchema={
-                "type": "object",
-                "properties": {"subscription_id": {"type": ["string", "null"]}},
-                "additionalProperties": False,
-            },
-        ),
-        types.Tool(
-            name="LOGOUT",
-            description="Logout Azure CLI session",
-            inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
-        ),
-        types.Tool(
-            name="LIST_SUBSCRIPTIONS",
-            description="List accessible subscriptions (optional subscription_id)",
-            inputSchema={
-                "type": "object",
-                "properties": {"subscription_id": {"type": ["string", "null"]}},
-                "additionalProperties": False,
-            },
-        ),
-        types.Tool(
-            name="QUERY",
-            description="Run a Kusto query against a cluster/database",
+            name="GET_SCHEMA",
+            description=(
+                "Return a JSON Schema file content from the repository (request/response/action/global). "
+                "Arguments: { path: string relative to schemas/ }"
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    # Align with schemas/actions/QUERY.request.schema.json
-                    "cluster_url": {"type": "string", "format": "uri"},
-                    "database": {"type": "string"},
-                    "query": {"type": "string"},
-                    "socks5_proxy": {"type": "string"},
-                    # Be lenient for clients that send 1/0 or strings; we coerce server-side
-                    "socks5_dns": {
-                        "oneOf": [
-                            {"type": "boolean"},
-                            {"type": "integer", "enum": [0, 1]},
-                            {
-                                "type": "string",
-                                "enum": [
-                                    "true",
-                                    "false",
-                                    "1",
-                                    "0",
-                                    "yes",
-                                    "no",
-                                    "on",
-                                    "off",
-                                    "t",
-                                    "f",
-                                    "y",
-                                    "n",
-                                ],
-                            },
-                        ],
-                        "default": False,
-                        "description": "Whether to use the SOCKS5 proxy for DNS resolution (BOOLEAN). Accepts: true/false/1/0/yes/no/on/off (case-insensitive).",
-                    },
+                    "path": {"type": "string", "description": "Relative path under schemas/"}
                 },
-                "required": ["cluster_url", "database", "query"],
+                "required": ["path"],
                 "additionalProperties": False,
             },
-        ),
-    ]
+        )
+    )
+    tools.append(
+        types.Tool(
+            name="GET_EXAMPLE",
+            description=(
+                "Return an example JSON payload from the repository. Arguments: { name: string from examples/ }"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "File name under examples/"}
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        )
+    )
+
+    return tools
 
 
 @server.call_tool()
@@ -245,6 +264,29 @@ async def call_tool(name: str, arguments: dict[str, Any]):
                 },
                 start,
             )
+        elif name == "MANIFEST":
+            # Mirror MANIFEST behavior from wrapper for convenience (no params)
+            env = kqc_wrapper.handle_manifest(start)
+        elif name == "GET_SCHEMA":
+            rel = str(arguments.get("path", "")).lstrip("/\\")
+            if not rel:
+                raise ValueError("Missing 'path' argument")
+            base = os.path.join(_script_dir, "schemas")
+            target = os.path.normpath(os.path.join(base, rel))
+            if not target.startswith(base) or not os.path.isfile(target):
+                raise FileNotFoundError(f"Schema not found: {rel}")
+            with open(target, "r", encoding="utf-8") as f:
+                return json.load(f)
+        elif name == "GET_EXAMPLE":
+            fname = str(arguments.get("name", "")).lstrip("/\\")
+            if not fname:
+                raise ValueError("Missing 'name' argument")
+            base = os.path.join(_script_dir, "examples")
+            target = os.path.normpath(os.path.join(base, fname))
+            if not target.startswith(base) or not os.path.isfile(target):
+                raise FileNotFoundError(f"Example not found: {fname}")
+            with open(target, "r", encoding="utf-8") as f:
+                return json.load(f)
         else:
             raise ValueError(f"Unknown tool: {name}")
 

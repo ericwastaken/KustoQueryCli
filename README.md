@@ -78,9 +78,11 @@ Linux (WSL). This is a feature of Windows that allows you to run a Linux environ
 install WSL by following the instructions here: https://docs.microsoft.com/en-us/windows/wsl/install. Form within WSL,
 you can follow the instructions above for macOS and Linux.
 
-## Model Context Protocol (MCP) Wrapper
+## Model Context Protocol (MCP)
 
-A technical guide for the MCP wrapper can be found in [README-MCP.md](README-MCP.md).
+This project can run as an MCP stdio server for AI clients.
+- Start here: [README-MCP-SERVER.md](README-MCP-SERVER.md) — overview of the stdio server and how to run it.
+- Implementation details for atomic actions: [README-MCP-WRAPPER.md](README-MCP-WRAPPER.md).
 
 #### Step 1: Authenticate with the Azure CLI
 

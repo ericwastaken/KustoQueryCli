@@ -5,7 +5,7 @@ rem Always execute from the directory where this script resides so relative path
 pushd %~dp0 >nul
 
 :::: docker-mcp.bat: A wrapper for running the MCP wrapper inside Docker.
-:::: This script reads from stdin and pipes it to 'python mcp.py' inside the container.
+:::: This script reads from stdin and pipes it to 'python mcp-wrapper.py' inside the container.
 
 set ENV_FILE=%~dp0.env
 
@@ -65,7 +65,7 @@ if not "%IS_RUNNING%"=="true" (
 )
 
 :::: Always execute the command via exec. Use -i for stdin.
-docker exec -i %MCP_CONTAINER_NAME% python mcp.py %*
+docker exec -i %MCP_CONTAINER_NAME% python mcp-wrapper.py %*
 set EXITCODE=%ERRORLEVEL%
 popd >nul
 exit /b %EXITCODE%

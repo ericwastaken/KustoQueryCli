@@ -1,0 +1,656 @@
+import sys
+import json
+import time
+import subprocess
+import os
+import re
+import platform
+import shlex
+import threading
+import tempfile
+import uuid
+from datetime import datetime, timezone
+from lib.KustoHandler import execute_adx_query
+from lib.AzureCliHelper import is_azure_cli_installed
+
+"""
+mcp-wrapper.py: A Model Context Protocol (MCP) wrapper for Azure Data Explorer (ADX).
+
+This script allows AI models to interact with ADX by providing a structured JSON interface
+for common operations such as authentication, listing subscriptions, and executing queries.
+It is designed to run either directly or inside a Docker container.
+
+Input (via stdin):
+    A JSON object with at least an "action" field and an optional "params" object.
+    Example: {"action": "QUERY", "params": {"query": "...", "database": "...", "cluster_url": "..."}}
+
+Actions:
+    - LOGIN: Initiates or verifies Azure CLI authentication.
+    - LOGOUT: Clears the current Azure CLI session and local caches.
+    - AUTH_STATUS: Checks the current authentication status and returns account details.
+    - LIST_SUBSCRIPTIONS: Returns a list of available Azure subscriptions (cached after login).
+    - QUERY: Executes a Kusto query and returns the results as a list of objects.
+
+Parameters (Environment Variables):
+    - MCP_DEBUG: Set to "true" to enable pretty-printing and detailed error messages.
+
+Usage Notes:
+    - The script uses the Azure CLI ('az') for authentication.
+    - If authentication is required, it initiates a device code login flow.
+    - In Docker, a background monitor process handles the 'az login' interactive steps.
+"""
+
+# Global settings
+VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-wrapper-version")
+PROTOCOL_VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-protocol-version")
+MANIFEST_FILE = os.path.join(os.path.dirname(__file__), "mcp-manifest.json")
+
+def load_version():
+    try:
+        with open(VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except:
+        return "0.0.0"
+
+def load_protocol_version():
+    try:
+        with open(PROTOCOL_VERSION_FILE, "r") as f:
+            return f.read().strip()
+    except:
+        return "1.0"
+
+WRAPPER_VERSION = load_version()
+PROTOCOL_VERSION = load_protocol_version()
+DEBUG_MODE = os.environ.get("MCP_DEBUG", "false").lower() == "true"
+SUBSCRIPTIONS_CACHE_FILE = os.path.expanduser("~/.azure/mcp_subscriptions_cache.json")
+
+class KustoEncoder(json.JSONEncoder):
+    """
+    Custom JSON encoder to handle types not supported by default, 
+    such as datetime objects and numpy types from pandas DataFrames.
+    """
+    def default(self, obj):
+        if hasattr(obj, 'isoformat'):
+            return obj.isoformat()
+        # Handle pandas/numpy types if needed
+        try:
+            import numpy as np
+            if isinstance(obj, (np.int64, np.int32, np.int16, np.int8)):
+                return int(obj)
+            if isinstance(obj, (np.float64, np.float32)):
+                return float(obj)
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+        except ImportError:
+            pass
+        return super().default(obj)
+
+def get_timestamp():
+    """Returns the current UTC timestamp in ISO-8601 format with 'Z' suffix."""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+def create_envelope(action, status="success", data=None, error=None, start_time=None, authenticated=False, metadata_extra=None, request_id=None):
+    """
+    Wraps the response in a standard JSON envelope with metadata.
+    
+    Args:
+        action (str): The name of the action being responded to.
+        status (str): "success" or "error".
+        data (dict, optional): The payload for successful responses.
+        error (dict, optional): Error details (type, code, message, details).
+        start_time (float, optional): Start time of the execution for performance tracking.
+        authenticated (bool): Current authentication status.
+        metadata_extra (dict, optional): Additional metadata to include.
+        request_id (str, optional): Unique ID of the request being responded to.
+        
+    Returns:
+        dict: The complete response envelope.
+    """
+    execution_time_ms = int((time.time() - start_time) * 1000) if start_time else 0
+    
+    metadata = {
+        "timestamp": get_timestamp(),
+        "execution_time_ms": execution_time_ms,
+        "authenticated": authenticated,
+        "wrapper_version": WRAPPER_VERSION,
+        "protocol_version": PROTOCOL_VERSION,
+    }
+    if request_id is not None:
+        metadata["request_id"] = request_id
+    if metadata_extra:
+        try:
+            metadata.update(metadata_extra)
+        except Exception:
+            pass
+
+    response = {
+        "status": status,
+        "action": action,
+        "data": data if data is not None else {},
+        "error": error if error is not None else {},
+        "metadata": metadata,
+    }
+    return response
+
+def print_json(obj):
+    if DEBUG_MODE:
+        print(json.dumps(obj, indent=2, cls=KustoEncoder))
+    else:
+        print(json.dumps(obj, separators=(",", ":"), cls=KustoEncoder))
+    sys.stdout.flush()
+
+def read_stdin_json():
+    try:
+        raw = sys.stdin.read()
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        return None, {
+            "type": "validation",
+            "code": "JSON_PARSE_ERROR",
+            "message": f"Invalid JSON input: {str(e)}",
+            "retryable": False,
+            "severity": "low",
+            "details": {"pos": getattr(e, 'pos', None)},
+        }
+    except Exception as e:
+        return None, {
+            "type": "internal",
+            "code": "WRAPPER_EXCEPTION",
+            "message": f"Unexpected error reading input: {str(e)}",
+            "retryable": False,
+            "severity": "medium",
+        }
+
+def run_command(cmd, timeout=None):
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False)
+        return proc.returncode, proc.stdout.decode('utf-8', 'replace'), proc.stderr.decode('utf-8', 'replace')
+    except subprocess.TimeoutExpired:
+        return 124, "", "Command timed out"
+    except FileNotFoundError as e:
+        return 127, "", str(e)
+    except Exception as e:
+        return 1, "", str(e)
+
+def is_authenticated():
+    rc, out, _ = run_command(["az", "account", "show", "--only-show-errors"])
+    if rc != 0:
+        return False, {}
+    try:
+        data = json.loads(out or "{}")
+        return True, data
+    except Exception:
+        return True, {}
+
+def select_subscription(subscription_id: str) -> tuple[bool, str | None]:
+    if not subscription_id:
+        return True, None
+    rc, out, err = run_command(["az", "account", "set", "--subscription", subscription_id, "--only-show-errors"])
+    if rc == 0:
+        return True, None
+    return False, err or out or "Failed to set subscription"
+
+def list_enabled_subscriptions() -> list[dict]:
+    rc, out, _ = run_command(["az", "account", "list", "--query", "[?state=='Enabled']", "--only-show-errors"])
+    if rc != 0:
+        return []
+    try:
+        subs = json.loads(out or "[]")
+        # Normalize keys of interest
+        result = []
+        for s in subs:
+            result.append(
+                {
+                    "id": s.get("id"),
+                    "name": s.get("name"),
+                    "tenant_id": s.get("tenantId") or s.get("tenant_id"),
+                    "is_default": bool(s.get("isDefault")),
+                    "state": s.get("state"),
+                }
+            )
+        return result
+    except Exception:
+        return []
+
+def save_subscriptions_cache(subs: list[dict]) -> None:
+    try:
+        os.makedirs(os.path.dirname(SUBSCRIPTIONS_CACHE_FILE), exist_ok=True)
+        with open(SUBSCRIPTIONS_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"subscriptions": subs, "cached_at": get_timestamp()}, f)
+    except Exception:
+        pass
+
+def load_subscriptions_cache() -> list[dict] | None:
+    try:
+        with open(SUBSCRIPTIONS_CACHE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            subs = data.get("subscriptions")
+            if isinstance(subs, list):
+                return subs
+    except Exception:
+        return None
+    return None
+
+def handle_manifest(start_time: float):
+    try:
+        with open(MANIFEST_FILE, "r", encoding="utf-8") as f:
+            manifest = json.load(f)
+        return create_envelope(
+            action="MANIFEST",
+            status="success",
+            data=manifest,
+            start_time=start_time,
+            authenticated=is_authenticated()[0],
+        )
+    except Exception as e:
+        return create_envelope(
+            action="MANIFEST",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "WRAPPER_EXCEPTION",
+                "message": f"Failed to load manifest: {e}",
+                "retryable": False,
+                "severity": "low",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+def handle_auth_status(start_time: float):
+    if not is_azure_cli_installed():
+        return create_envelope(
+            action="AUTH_STATUS",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "AZ_CLI_NOT_FOUND",
+                "message": "Azure CLI (az) is not installed.",
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    authed, account = is_authenticated()
+    data = {"authenticated": authed}
+    if authed:
+        data["account"] = account
+    return create_envelope(
+        action="AUTH_STATUS",
+        status="success",
+        data=data,
+        start_time=start_time,
+        authenticated=authed,
+    )
+
+def _start_login_background_monitor(subscription_id: str | None, timeout_seconds: int = 120) -> dict:
+    """
+    Start a background thread that waits for up to `timeout_seconds` attempting to
+    finalize login and select the subscription. Intended for containerized runs.
+    """
+    result: dict = {"started": False}
+
+    def _worker():
+        start = time.time()
+        # Poll is_authenticated and try to select subscription
+        while time.time() - start < timeout_seconds:
+            authed, _ = is_authenticated()
+            if authed:
+                if subscription_id:
+                    ok, _ = select_subscription(subscription_id)
+                    # Regardless of selection outcome, we consider the process finished
+                break
+            time.sleep(3)
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    result["started"] = True
+    return result
+
+def handle_login(start_time: float, subscription_id: str | None):
+    if not is_azure_cli_installed():
+        return create_envelope(
+            action="LOGIN",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "AZ_CLI_NOT_FOUND",
+                "message": "Azure CLI (az) is not installed.",
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    authed, account = is_authenticated()
+    if authed:
+        # If already authenticated, optionally switch subscription
+        if subscription_id:
+            ok, err = select_subscription(subscription_id)
+            if not ok:
+                return create_envelope(
+                    action="LOGIN",
+                    status="error",
+                    error={
+                        "type": "authentication",
+                        "code": "AZ_LOGIN_FAILED",
+                        "message": err or "Failed to select subscription",
+                        "retryable": True,
+                        "severity": "low",
+                    },
+                    start_time=start_time,
+                    authenticated=True,
+                )
+        subs = list_enabled_subscriptions()
+        save_subscriptions_cache(subs)
+        return create_envelope(
+            action="LOGIN",
+            status="success",
+            data={"authenticated": True, "account": account, "subscriptions": subs},
+            start_time=start_time,
+            authenticated=True,
+        )
+
+    # Not authenticated: start device code login
+    rc, out, err = run_command(["az", "login", "--use-device-code", "--only-show-errors"])
+    if rc != 0:
+        return create_envelope(
+            action="LOGIN",
+            status="error",
+            error={
+                "type": "authentication",
+                "code": "AZ_LOGIN_FAILED",
+                "message": err or out or "Failed to start device code login",
+                "retryable": True,
+                "severity": "medium",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    # Try to parse device code info from stderr/out when available
+    # Azure CLI prints something like: "To sign in, use a web browser to open https://microsoft.com/devicelogin and enter the code ABCD-EFGH to authenticate."
+    verification_url = None
+    device_code = None
+    m = re.search(r"open\s+(https?://\S+)|enter the code\s+([A-Z0-9-]{4,})", (out + "\n" + err))
+    if m:
+        # The regex has two groups; collect whichever matched
+        verification_url = m.group(1) if m.group(1) else verification_url
+        device_code = m.group(2) if m.group(2) else device_code
+
+    # Start a background monitor to finalize login and select subscription if provided
+    _start_login_background_monitor(subscription_id)
+
+    return create_envelope(
+        action="LOGIN",
+        status="success",
+        data={
+            "authenticated": False,
+            "verification_url": verification_url,
+            "device_code": device_code,
+            "message": "Complete device login in the browser; authentication will be detected automatically.",
+        },
+        start_time=start_time,
+        authenticated=False,
+    )
+
+def handle_logout(start_time: float):
+    if not is_azure_cli_installed():
+        return create_envelope(
+            action="LOGOUT",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "AZ_CLI_NOT_FOUND",
+                "message": "Azure CLI (az) is not installed.",
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    rc, _, err = run_command(["az", "logout", "--only-show-errors"])
+    if rc != 0:
+        return create_envelope(
+            action="LOGOUT",
+            status="error",
+            error={
+                "type": "authentication",
+                "code": "AZ_LOGOUT_FAILED",
+                "message": err or "Logout failed",
+                "retryable": True,
+                "severity": "low",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    # Clear cache
+    try:
+        if os.path.exists(SUBSCRIPTIONS_CACHE_FILE):
+            os.remove(SUBSCRIPTIONS_CACHE_FILE)
+    except Exception:
+        pass
+
+    return create_envelope(
+        action="LOGOUT",
+        status="success",
+        data={"logged_out": True},
+        start_time=start_time,
+        authenticated=False,
+    )
+
+def handle_list_subscriptions(start_time: float, subscription_id: str | None):
+    if not is_azure_cli_installed():
+        return create_envelope(
+            action="LIST_SUBSCRIPTIONS",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "AZ_CLI_NOT_FOUND",
+                "message": "Azure CLI (az) is not installed.",
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    authed, account = is_authenticated()
+    if not authed:
+        # Initiate login flow similar to handle_login, but also returns subscriptions when available
+        env = handle_login(start_time, subscription_id)
+        if env.get("status") == "success":
+            # Attach best-effort cached subscriptions if available
+            cached = load_subscriptions_cache() or []
+            env.setdefault("data", {})["subscriptions"] = cached
+        return env
+
+    # Already authenticated -> list subscriptions directly
+    subs = list_enabled_subscriptions()
+    save_subscriptions_cache(subs)
+    return create_envelope(
+        action="LIST_SUBSCRIPTIONS",
+        status="success",
+        data={"subscriptions": subs, "account": account},
+        start_time=start_time,
+        authenticated=True,
+    )
+
+def _validate_query_params(params: dict) -> tuple[bool, str | None]:
+    required = ["query", "database", "cluster_url"]
+    for p in required:
+        if not params.get(p):
+            return False, f"Missing required parameter: {p}"
+    return True, None
+
+def handle_query(params: dict, start_time: float):
+    if not is_azure_cli_installed():
+        return create_envelope(
+            action="QUERY",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "AZ_CLI_NOT_FOUND",
+                "message": "Azure CLI (az) is not installed.",
+                "retryable": False,
+                "severity": "high",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    ok, err = _validate_query_params(params or {})
+    if not ok:
+        return create_envelope(
+            action="QUERY",
+            status="error",
+            error={
+                "type": "validation",
+                "code": "MISSING_PARAMS",
+                "message": err or "Missing required parameters",
+                "retryable": False,
+                "severity": "low",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    cluster_url = params.get("cluster_url")
+    database = params.get("database")
+    query = params.get("query")
+    socks5_proxy = params.get("socks5_proxy")
+    socks5_dns = bool(params.get("socks5_dns", False))
+
+    try:
+        rows = execute_adx_query(
+            cluster_url=cluster_url,
+            database=database,
+            query=query,
+            socks5_proxy=socks5_proxy,
+            socks5_dns=socks5_dns,
+        )
+        return create_envelope(
+            action="QUERY",
+            status="success",
+            data={"result": rows},
+            start_time=start_time,
+            authenticated=is_authenticated()[0],
+        )
+    except Exception as e:
+        return create_envelope(
+            action="QUERY",
+            status="error",
+            error={
+                "type": "execution",
+                "code": "KUSTO_QUERY_FAILED",
+                "message": str(e),
+                "retryable": False,
+                "severity": "medium",
+            },
+            start_time=start_time,
+            authenticated=is_authenticated()[0],
+        )
+
+def main():
+    start_time = time.time()
+    if not is_azure_cli_installed():
+        print_json(
+            create_envelope(
+                action="INIT",
+                status="error",
+                error={
+                    "type": "internal",
+                    "code": "AZ_CLI_NOT_FOUND",
+                    "message": "Azure CLI (az) is not installed.",
+                    "retryable": False,
+                    "severity": "high",
+                },
+                start_time=start_time,
+                authenticated=False,
+            )
+        )
+        return
+
+    try:
+        payload = json.loads(sys.stdin.read())
+    except Exception as e:
+        print_json(
+            create_envelope(
+                action="UNKNOWN",
+                status="error",
+                error={
+                    "type": "validation",
+                    "code": "JSON_PARSE_ERROR",
+                    "message": f"Invalid JSON: {e}",
+                    "retryable": False,
+                    "severity": "low",
+                },
+                start_time=start_time,
+                authenticated=False,
+            )
+        )
+        return
+
+    action = (payload or {}).get("action")
+    params = (payload or {}).get("params") or {}
+
+    try:
+        if action == "MANIFEST":
+            env = handle_manifest(start_time)
+        elif action == "AUTH_STATUS":
+            env = handle_auth_status(start_time)
+        elif action == "LOGIN":
+            env = handle_login(start_time, params.get("subscription_id"))
+        elif action == "LOGOUT":
+            env = handle_logout(start_time)
+        elif action == "LIST_SUBSCRIPTIONS":
+            env = handle_list_subscriptions(start_time, params.get("subscription_id"))
+        elif action == "QUERY":
+            env = handle_query(
+                {
+                    "query": params.get("query"),
+                    "database": params.get("database"),
+                    "cluster_url": params.get("cluster_url"),
+                    "socks5_proxy": params.get("socks5_proxy"),
+                    "socks5_dns": bool(params.get("socks5_dns", False)),
+                },
+                start_time,
+            )
+        else:
+            env = create_envelope(
+                action=action or "UNKNOWN",
+                status="error",
+                error={
+                    "type": "validation",
+                    "code": "UNKNOWN_ACTION",
+                    "message": f"Unknown action: {action}",
+                    "retryable": False,
+                    "severity": "low",
+                },
+                start_time=start_time,
+                authenticated=False,
+            )
+    except Exception as e:
+        env = create_envelope(
+            action=action or "UNKNOWN",
+            status="error",
+            error={
+                "type": "internal",
+                "code": "WRAPPER_EXCEPTION",
+                "message": str(e),
+                "retryable": False,
+                "severity": "medium",
+            },
+            start_time=start_time,
+            authenticated=False,
+        )
+
+    print_json(env)
+
+if __name__ == "__main__":
+    main()
