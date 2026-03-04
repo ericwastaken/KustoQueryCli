@@ -9,8 +9,8 @@ Starts the local MCP stdio server (or Docker wrapper) and performs:
 Prints the server responses as pretty JSON, then exits.
 
 Usage examples:
-  python test/test-mcp-stdio-server-login.py --subscription-id <SUB_ID>
-  python test/test-mcp-stdio-server-login.py --subscription-id <SUB_ID> --docker
+  python tests/test-mcp-stdio-server-login.py --subscription-id <SUB_ID>
+  python tests/test-mcp-stdio-server-login.py --subscription-id <SUB_ID> --docker
 """
 
 import argparse
@@ -22,7 +22,7 @@ import time
 import select
 
 
-# Project root (one level up from this file's directory: ./test)
+# Project root (one level up from this file's directory: ./tests)
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TEST_DIR)
 

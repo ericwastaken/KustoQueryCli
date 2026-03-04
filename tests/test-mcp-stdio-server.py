@@ -164,7 +164,7 @@ def run_sequence(
         # Optional QUERY
         if query_args:
             args = {
-                "cluster": query_args.get("cluster"),
+                "cluster_url": query_args.get("cluster_url"),
                 "database": query_args.get("database"),
                 "query": query_args.get("query"),
             }
@@ -248,7 +248,8 @@ def main() -> int:
 
     query_args = None
     if args.cluster and args.database and args.kql:
-        query_args = {"cluster": args.cluster, "database": args.database, "query": args.kql}
+        # Server expects 'cluster_url' and 'query' keys
+        query_args = {"cluster_url": args.cluster, "database": args.database, "query": args.kql}
 
     os.chdir(ROOT)
     return run_sequence(

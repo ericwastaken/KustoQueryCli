@@ -116,8 +116,13 @@ def create_envelope(action, status="success", data=None, error=None, start_time=
         "wrapper_version": WRAPPER_VERSION,
         "protocol_version": PROTOCOL_VERSION,
     }
-    if request_id is not None:
-        metadata["request_id"] = request_id
+    # Always include a request_id to satisfy the response schema; generate one if not provided
+    if request_id is None:
+        try:
+            request_id = str(uuid.uuid4())
+        except Exception:
+            request_id = "00000000-0000-0000-0000-000000000000"
+    metadata["request_id"] = request_id
     if metadata_extra:
         try:
             metadata.update(metadata_extra)
@@ -139,28 +144,6 @@ def print_json(obj):
     else:
         print(json.dumps(obj, separators=(",", ":"), cls=KustoEncoder))
     sys.stdout.flush()
-
-def read_stdin_json():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw)
-    except json.JSONDecodeError as e:
-        return None, {
-            "type": "validation",
-            "code": "JSON_PARSE_ERROR",
-            "message": f"Invalid JSON input: {str(e)}",
-            "retryable": False,
-            "severity": "low",
-            "details": {"pos": getattr(e, 'pos', None)},
-        }
-    except Exception as e:
-        return None, {
-            "type": "internal",
-            "code": "WRAPPER_EXCEPTION",
-            "message": f"Unexpected error reading input: {str(e)}",
-            "retryable": False,
-            "severity": "medium",
-        }
 
 def run_command(cmd, timeout=None):
     try:
@@ -662,10 +645,15 @@ def handle_query(params: dict, start_time: float):
             socks5_proxy=socks5_proxy,
             socks5_dns=socks5_dns,
         )
+        # Include row_count to satisfy QUERY.response.schema.json
+        try:
+            row_count = len(rows) if rows is not None else 0
+        except Exception:
+            row_count = 0
         return create_envelope(
             action="QUERY",
             status="success",
-            data={"result": rows},
+            data={"result": rows, "row_count": row_count},
             start_time=start_time,
             authenticated=is_authenticated()[0],
         )
