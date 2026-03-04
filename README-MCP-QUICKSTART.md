@@ -74,9 +74,9 @@ Typical flow in your MCP client chat:
    - "Using the kusto-query MCP server, call QUERY against my cluster and database with this KQL: ..."
 
 What to provide when querying:
-- `cluster`: e.g., `https://<cluster-name>.<region>.kusto.windows.net`.
+- `cluster_url`: e.g., `https://<cluster-name>.<region>.kusto.windows.net`.
 - `database`: the ADX database name.
-- `kql`: your Kusto query text.
+- `query`: your Kusto query text.
 - (optional) `socks5_proxy`: if you need to use a SOCKS5 proxy for the query, enter it as `<host>:<port>`.
 - (optional) `socks5_dns`: if you are using a SOCKS5 proxy for the query, enter `true|false` to control whether DNS 
   resolution is done through the proxy.
