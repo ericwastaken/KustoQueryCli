@@ -1,3 +1,5 @@
 azure-kusto-data>=6.0.2
 pandas>=3.0.1
 PySocks>=1.7.1
+# MCP SDK for stdio server
+mcp>=1.26.0

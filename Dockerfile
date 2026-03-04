@@ -4,6 +4,9 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
+# Ensure Python writes unbuffered output for MCP stdio
+ENV PYTHONUNBUFFERED=1
+
 # Install system dependencies for Azure CLI
 RUN apt-get update && apt-get install -y curl gnupg lsb-release \
     && curl -sL https://aka.ms/InstallAzureCLIDeb | bash

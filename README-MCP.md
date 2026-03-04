@@ -4,11 +4,29 @@ This project provides a Model Context Protocol (MCP) wrapper for interacting wit
 
 ## Quick Start for MCP Use
 
+### Run as an MCP stdio server (recommended for MCP clients)
+- This project includes a minimal MCP stdio server implemented with the official Python SDK: `mcp-stdio-server.py`.
+- MCP clients should spawn the Docker wrapper script directly as the server command (stdio transport):
+
+Example client configuration:
+
+```json
+{
+  "kusto-query": {
+    "command": "/absolute/path/to/KustoQueryCli/docker-mcp.sh"
+  }
+}
+```
+
+Notes:
+- The Docker wrapper uses `--interactive` only (no TTY) to preserve MCP stdio framing.
+- It will automatically build the image on first run. You can optionally set `KUSTO_QUERY_CLI_VERSION` in your environment or `.env`; otherwise it falls back to the value in `mcp-wrapper-version`.
+
 ### Docker (macOS / Linux / Windows with WSL)
 1. Install Docker on your workstation.
 2. Force an initial build of the Docker image: `echo '{"action":"AUTH_STATUS"}' | ./docker-mcp.sh` (only needed the 
    first time or after a new version!)
-3. Run the MCP wrapper from your favorite MCP client: TODO
+3. Run the MCP wrapper from your favorite MCP client using the configuration above.
 
 ## Actions
 

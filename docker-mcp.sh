@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# docker-mcp.sh: A wrapper for running the MCP wrapper inside Docker.
-# This script reads from stdin and pipes it to 'python mcp.py' inside a managed container.
+# docker-mcp.sh: Launch the MCP stdio server inside Docker.
+# This runs 'python mcp-stdio-server.py' in the foreground with stdio attached,
+# suitable for MCP clients that spawn a long-lived stdio process.
 
 set -e
 
@@ -11,18 +12,19 @@ cd "$SCRIPT_DIR"
 
 ENV_FILE="$SCRIPT_DIR/.env"
 
-if [ ! -f "$ENV_FILE" ]; then
-  echo "Error: .env file not found at $ENV_FILE" >&2
-  echo "The .env file must exist and contain KUSTO_QUERY_CLI_VERSION variable." >&2
-  exit 1
+# Resolve version tag priority: env var > .env > mcp-wrapper-version > dev
+if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
+  if [ -f "$ENV_FILE" ]; then
+    KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
+  fi
 fi
 
-KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
-
 if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
-  echo "Error: KUSTO_QUERY_CLI_VERSION not set in $ENV_FILE" >&2
-  echo "Please add KUSTO_QUERY_CLI_VERSION=<version> to your .env file." >&2
-  exit 1
+  if [ -f "$SCRIPT_DIR/mcp-wrapper-version" ]; then
+    KUSTO_QUERY_CLI_VERSION=$(tr -d ' \t\r\n' < "$SCRIPT_DIR/mcp-wrapper-version")
+  else
+    KUSTO_QUERY_CLI_VERSION="dev"
+  fi
 fi
 
 IMAGE_TAG="kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}"
@@ -48,27 +50,14 @@ if ! image_exists; then
   fi
 fi
 
-# MCP mode behavior:
-# 1) Use a dedicated container with a fixed name.
-# 2) If it exists but is not running, remove and re-run to ensure fresh state/volumes.
-# 3) If it's already running, simply use it via 'docker exec'.
-
-is_running="$(docker inspect -f '{{.State.Running}}' "$MCP_CONTAINER_NAME" 2>/dev/null || echo "not_found")"
-# Clean up potential whitespace (some docker versions output a newline even on error)
-is_running="${is_running//[[:space:]]/}"
-
-if [ "$is_running" != "true" ]; then
-  if [ "$is_running" != "not_found" ]; then
-    # Container exists but is stopped. Remove it so we can run it with proper config.
-    docker rm "$MCP_CONTAINER_NAME" > /dev/null
-  fi
-  
-  # Start the container and keep it alive in background
-  docker run -d --name "$MCP_CONTAINER_NAME" \
-    -v "${AZURE_STATE_VOLUME}:/root/.azure" \
-    "$IMAGE_TAG" \
-    tail -f /dev/null > /dev/null
+# If a stale container exists, remove it so the foreground run can attach the name.
+if docker ps -a --format '{{.Names}}' | grep -qx "$MCP_CONTAINER_NAME"; then
+  docker rm -f "$MCP_CONTAINER_NAME" >/dev/null 2>&1 || true
 fi
 
-# Always execute the command via exec
-docker exec -i "$MCP_CONTAINER_NAME" python mcp.py "$@"
+# Run the MCP stdio server in the foreground with stdio attached
+exec docker run --rm -i \
+  --name "$MCP_CONTAINER_NAME" \
+  -v "${AZURE_STATE_VOLUME}:/root/.azure" \
+  "$IMAGE_TAG" \
+  python mcp-stdio-server.py "$@"

@@ -5,6 +5,7 @@
 !k2csv.py
 !k2json.py
 !mcp.py
+!mcp-stdio-server.py
 !entrypoint.sh
 !requirements.txt
 !lib/
