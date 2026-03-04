@@ -1,7 +1,7 @@
 {
   "status": "error",
   "action": "QUERY",
-  "data": null,
+  "data": {},
   "error": {
     "type": "execution",
     "code": "KUSTO_QUERY_FAILED",
