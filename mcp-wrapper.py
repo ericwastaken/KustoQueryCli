@@ -86,6 +86,98 @@ class KustoEncoder(json.JSONEncoder):
             pass
         return super().default(obj)
 
+def _json_sanitize(value):
+    """Best-effort conversion to JSON-serializable structures.
+
+    Mirrors the approach used by the MCP STDIO server: convert pandas
+    DataFrame/Series when available, handle numpy scalars/arrays, and
+    datetime-like objects with isoformat. Falls back to string when needed.
+    """
+    # Fast path for primitives
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+
+    # Datetime-like (duck-typing via isoformat)
+    try:
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+    except Exception:
+        pass
+
+    # pandas integration (optional)
+    try:
+        import pandas as pd  # type: ignore
+    except Exception:
+        pd = None  # type: ignore
+
+    if pd is not None:
+        try:
+            if isinstance(value, pd.DataFrame):
+                try:
+                    # Convert to list of records and sanitize nested values
+                    return [
+                        {str(k): _json_sanitize(v) for k, v in row.items()}
+                        for row in value.to_dict(orient="records")
+                    ]
+                except Exception:
+                    # Fallback to JSON string if conversion fails
+                    return json.loads(value.to_json(orient="records"))
+            if isinstance(value, pd.Series):
+                try:
+                    return [_json_sanitize(v) for v in value.tolist()]
+                except Exception:
+                    try:
+                        return {str(k): _json_sanitize(v) for k, v in value.to_dict().items()}
+                    except Exception:
+                        return str(value)
+        except Exception:
+            pass
+
+    # NumPy scalars/arrays
+    try:
+        import numpy as np  # type: ignore
+        if isinstance(value, (np.integer,)):
+            return int(value)
+        if isinstance(value, (np.floating,)):
+            return float(value)
+        if isinstance(value, (np.ndarray,)):
+            return [_json_sanitize(v) for v in value.tolist()]
+    except Exception:
+        pass
+
+    # Bytes/bytearray → utf-8 or base64
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            return value.decode("utf-8")
+        except Exception:
+            import base64
+            return base64.b64encode(bytes(value)).decode("ascii")
+
+    # Sets/Tuples → lists
+    if isinstance(value, (set, tuple)):
+        return [_json_sanitize(v) for v in value]
+
+    # Mappings → dict
+    try:
+        if isinstance(value, dict):
+            return {str(k): _json_sanitize(v) for k, v in value.items()}
+    except Exception:
+        pass
+
+    # Iterables (last resort) → list
+    try:
+        from collections.abc import Iterable
+        if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
+            return [_json_sanitize(v) for v in list(value)]
+    except Exception:
+        pass
+
+    # Fallback to string
+    try:
+        return str(value)
+    except Exception:
+        return None
+
 def get_timestamp():
     """Returns the current UTC timestamp in ISO-8601 format with 'Z' suffix."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -645,15 +737,26 @@ def handle_query(params: dict, start_time: float):
             socks5_proxy=socks5_proxy,
             socks5_dns=socks5_dns,
         )
+        # Sanitize result to JSON-serializable structure (align with MCP STDIO server)
+        sanitized = _json_sanitize(rows)
         # Include row_count to satisfy QUERY.response.schema.json
+        row_count = 0
         try:
-            row_count = len(rows) if rows is not None else 0
+            # Prefer original DataFrame length when available
+            try:
+                import pandas as pd  # type: ignore
+            except Exception:
+                pd = None  # type: ignore
+            if pd is not None and isinstance(rows, pd.DataFrame):
+                row_count = len(rows)
+            elif hasattr(sanitized, "__len__") and not isinstance(sanitized, (str, bytes, bytearray)):
+                row_count = len(sanitized)
         except Exception:
             row_count = 0
         return create_envelope(
             action="QUERY",
             status="success",
-            data={"result": rows, "row_count": row_count},
+            data={"result": sanitized, "row_count": row_count},
             start_time=start_time,
             authenticated=is_authenticated()[0],
         )
