@@ -1,0 +1,90 @@
+{
+  "name": "KustoQueryCli MCP Wrapper",
+  "description": "A formal MCP wrapper for executing Kusto queries via the Azure CLI.",
+  "version": "1.0.0",
+  "protocol_version": "1.0",
+  "transport": "stdin/stdout",
+  "authentication_requirements": {
+    "method": "Azure CLI Device Code Flow",
+    "scope": "https://help.kusto.windows.net/.default"
+  },
+  "environment_requirements": {
+    "binaries": [
+      "python",
+      "az"
+    ],
+    "python_version": ">=3.12",
+    "azure_cli_version": "latest"
+  },
+  "supported_actions": [
+    "MANIFEST",
+    "LOGIN",
+    "LOGOUT",
+    "AUTH_STATUS",
+    "LIST_SUBSCRIPTIONS",
+    "QUERY"
+  ],
+  "action_definitions": {
+    "MANIFEST": {
+      "request_schema": "schemas/actions/MANIFEST.request.schema.json",
+      "response_schema": "schemas/actions/MANIFEST.response.schema.json",
+      "idempotent": true,
+      "requires_auth": false
+    },
+    "LOGIN": {
+      "request_schema": "schemas/actions/LOGIN.request.schema.json",
+      "response_schema": "schemas/actions/LOGIN.response.schema.json",
+      "idempotent": false,
+      "requires_auth": false
+    },
+    "LOGOUT": {
+      "request_schema": "schemas/actions/LOGOUT.request.schema.json",
+      "response_schema": "schemas/actions/LOGOUT.response.schema.json",
+      "idempotent": true,
+      "requires_auth": false
+    },
+    "AUTH_STATUS": {
+      "request_schema": "schemas/actions/AUTH_STATUS.request.schema.json",
+      "response_schema": "schemas/actions/AUTH_STATUS.response.schema.json",
+      "idempotent": true,
+      "requires_auth": false
+    },
+    "LIST_SUBSCRIPTIONS": {
+      "request_schema": "schemas/actions/LIST_SUBSCRIPTIONS.request.schema.json",
+      "response_schema": "schemas/actions/LIST_SUBSCRIPTIONS.response.schema.json",
+      "idempotent": true,
+      "requires_auth": false
+    },
+    "QUERY": {
+      "request_schema": "schemas/actions/QUERY.request.schema.json",
+      "response_schema": "schemas/actions/QUERY.response.schema.json",
+      "idempotent": true,
+      "requires_auth": true
+    }
+  },
+  "error_codes": [
+    "AZ_CLI_NOT_FOUND",
+    "AZ_NOT_AUTHENTICATED",
+    "AZ_LOGIN_FAILED",
+    "AZ_LOGOUT_FAILED",
+    "AZ_TOKEN_EXPIRED",
+    "KUSTO_QUERY_FAILED",
+    "SUBSCRIPTION_CACHE_UNAVAILABLE",
+    "MISSING_REQUIRED_PARAMETER",
+    "MISSING_PARAMS",
+    "UNKNOWN_ACTION",
+    "JSON_PARSE_ERROR",
+    "WRAPPER_EXCEPTION"
+  ],
+  "response_envelope_schema": "schemas/response-envelope.schema.json",
+  "metadata_fields": [
+    "timestamp",
+    "execution_time_ms",
+    "authenticated",
+    "request_id",
+    "wrapper_version",
+    "protocol_version",
+    "cluster",
+    "database"
+  ]
+}

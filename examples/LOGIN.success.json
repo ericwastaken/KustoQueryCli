@@ -1,0 +1,24 @@
+{
+  "status": "success",
+  "action": "LOGIN",
+  "data": {
+    "authenticated": false,
+    "login_required": true,
+    "device_login": {
+      "verification_url": "https://microsoft.com/devicelogin",
+      "device_code": "ABC-DEF-GHI",
+      "expires_in_seconds": 900,
+      "polling_interval_seconds": 5
+    },
+    "message": "Complete device login in your browser."
+  },
+  "error": null,
+  "metadata": {
+    "timestamp": "2024-03-21T10:01:00Z",
+    "execution_time_ms": 250,
+    "authenticated": false,
+    "request_id": "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

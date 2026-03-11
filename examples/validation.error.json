@@ -1,0 +1,20 @@
+{
+  "status": "error",
+  "action": "QUERY",
+  "data": null,
+  "error": {
+    "type": "validation",
+    "code": "MISSING_REQUIRED_PARAMETER",
+    "message": "Required parameter 'database' is missing.",
+    "retryable": false,
+    "severity": "medium"
+  },
+  "metadata": {
+    "timestamp": "2024-03-21T10:00:10Z",
+    "execution_time_ms": 10,
+    "authenticated": true,
+    "request_id": "426038f9-4d3b-4c31-9a74-4b5c77742918",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

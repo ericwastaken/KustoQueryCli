@@ -1,0 +1,23 @@
+{
+  "status": "error",
+  "action": "QUERY",
+  "data": {},
+  "error": {
+    "type": "execution",
+    "code": "KUSTO_QUERY_FAILED",
+    "message": "Kusto query execution failed.",
+    "retryable": false,
+    "severity": "medium",
+    "details": {
+      "reason": "Syntax error: StormEvents_missing table not found."
+    }
+  },
+  "metadata": {
+    "timestamp": "2024-03-21T10:00:05Z",
+    "execution_time_ms": 45,
+    "authenticated": true,
+    "request_id": "c73bcd1d-7259-40e2-89e4-844cd0a94770",
+    "wrapper_version": "1.0.0",
+    "protocol_version": "1.0"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LOGIN Action Response Data",
+  "type": "object",
+  "required": [
+    "authenticated"
+  ],
+  "properties": {
+    "authenticated": {
+      "type": "boolean"
+    },
+    "login_required": {
+      "type": "boolean"
+    },
+    "message": {
+      "type": "string"
+    },
+    "subscription": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "tenant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "device_login": {
+      "type": "object",
+      "required": [
+        "verification_url",
+        "device_code"
+      ],
+      "properties": {
+        "verification_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "device_code": {
+          "type": "string"
+        },
+        "expires_in_seconds": {
+          "type": "integer"
+        },
+        "polling_interval_seconds": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

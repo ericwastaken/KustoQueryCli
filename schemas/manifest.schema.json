@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mcp.io/schemas/manifest.schema.json",
+  "title": "MCP Manifest",
+  "description": "Formal schema for MCP capability manifests.",
+  "type": "object",
+  "required": [
+    "name",
+    "description",
+    "version",
+    "protocol_version",
+    "transport",
+    "supported_actions",
+    "action_definitions",
+    "error_codes",
+    "response_envelope_schema"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the MCP wrapper."
+    },
+    "description": {
+      "type": "string",
+      "description": "Short summary of the wrapper's purpose."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the wrapper."
+    },
+    "protocol_version": {
+      "type": "string",
+      "description": "Version of the MCP protocol supported."
+    },
+    "transport": {
+      "type": "string",
+      "enum": [
+        "stdin/stdout",
+        "http",
+        "websocket"
+      ],
+      "description": "Mechanism for data transmission."
+    },
+    "authentication_requirements": {
+      "type": "object",
+      "description": "Specification of global authentication needs.",
+      "additionalProperties": true
+    },
+    "environment_requirements": {
+      "type": "object",
+      "description": "Specification of runtime environment needs (e.g., binaries, variables).",
+      "additionalProperties": true
+    },
+    "supported_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "List of action names available in this wrapper."
+    },
+    "action_definitions": {
+      "type": "object",
+      "description": "Map of action names to their schema references.",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "request_schema",
+          "response_schema"
+        ],
+        "properties": {
+          "request_schema": {
+            "type": "string"
+          },
+          "response_schema": {
+            "type": "string"
+          },
+          "error_schema": {
+            "type": "string"
+          },
+          "idempotent": {
+            "type": "boolean"
+          },
+          "requires_auth": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "error_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "Complete list of machine-readable error codes."
+    },
+    "response_envelope_schema": {
+      "type": "string",
+      "description": "Reference to the global response envelope schema."
+    },
+    "metadata_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of standard and custom metadata fields included in responses."
+    }
+  }
+}

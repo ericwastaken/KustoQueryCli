@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LOGOUT Action Response Data",
+  "type": "object",
+  "required": [
+    "logged_out"
+  ],
+  "properties": {
+    "logged_out": {
+      "type": "boolean"
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

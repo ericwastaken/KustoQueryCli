@@ -1,0 +1,13 @@
+{
+  "runtime_state": {
+    "azure_cli_available": true,
+    "azure_cli_version": "2.58.0",
+    "authenticated": false,
+    "capabilities": {
+      "streaming": false,
+      "caching": true,
+      "proxy_support": true
+    },
+    "degraded_modes": []
+  }
+}

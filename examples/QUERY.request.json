@@ -1,0 +1,8 @@
+{
+  "action": "QUERY",
+  "params": {
+    "query": "StormEvents | take 10",
+    "database": "Samples",
+    "cluster_url": "https://help.kusto.windows.net"
+  }
+}

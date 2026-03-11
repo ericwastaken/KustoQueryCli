@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AUTH_STATUS Action Response Data",
+  "type": "object",
+  "required": [
+    "authenticated"
+  ],
+  "properties": {
+    "authenticated": {
+      "type": "boolean"
+    },
+    "message": {
+      "type": "string"
+    },
+    "subscription": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "tenant_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "account": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
