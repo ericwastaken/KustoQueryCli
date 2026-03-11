@@ -71,12 +71,16 @@ Typical flow in your MCP client chat:
    - "Run AUTH_STATUS with the kusto-query MCP server."
 
 3. Run a query:
-   - "Using the kusto-query MCP server, call QUERY against my cluster and database with this KQL: ..."
+   - "Using the kusto-query MCP server against my cluster <cluster-url> and database <database name>, analyze the table 
+     <table name> and show me <some interesting question about your data>."
+   - Note that you don't really need to specific a query directly, though you can. But you can also say "analyze the 
+     table <table name> and help me understand the shape of the data. I am looking for <some interesting question about your data>."
 
 What to provide when querying:
 - `cluster_url`: e.g., `https://<cluster-name>.<region>.kusto.windows.net`.
 - `database`: the ADX database name.
-- `query`: your Kusto query text.
+- `query`: your Kusto query text. In an MCP client, you can also just provide a table name and the client will generate 
+  a query for you based on some description you provide or even a data question.
 - (optional) `socks5_proxy`: if you need to use a SOCKS5 proxy for the query, enter it as `<host>:<port>`.
 - (optional) `socks5_dns`: if you are using a SOCKS5 proxy for the query, enter `true|false` to control whether DNS 
   resolution is done through the proxy.

@@ -9,16 +9,19 @@ ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies for Azure CLI
 RUN apt-get update && apt-get install -y curl gnupg lsb-release \
-    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the current directory contents into the container at /usr/src/app
-COPY . .
+# Copy requirements first for better layer caching
+COPY requirements.txt .
 
-# Install any needed packages specified in requirements.txt
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the entrypoint script and give it the necessary permissions
-COPY entrypoint.sh /usr/src/app
+# Copy the rest of the app (includes entrypoint.sh)
+COPY . .
+
+# Ensure entrypoint script is executable
 RUN chmod +x /usr/src/app/entrypoint.sh
 
 # Set the entrypoint script as the entry point for the container
