@@ -9,6 +9,13 @@
     "authenticated": {
       "type": "boolean"
     },
+    "azure_auth_mode": {
+      "type": "string",
+      "enum": [
+        "container_managed",
+        "host_shared"
+      ]
+    },
     "message": {
       "type": "string"
     },
@@ -38,6 +45,29 @@
           "type": "string"
         }
       }
+    },
+    "proxy_config": {
+      "type": "object",
+      "required": [
+        "proxy_enabled",
+        "socks5_proxy",
+        "socks5_dns"
+      ],
+      "properties": {
+        "proxy_enabled": {
+          "type": "boolean"
+        },
+        "socks5_proxy": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "socks5_dns": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

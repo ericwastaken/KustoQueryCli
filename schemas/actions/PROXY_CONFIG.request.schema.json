@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PROXY_CONFIG Action Request",
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "const": "PROXY_CONFIG"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "socks5_proxy": {
+          "type": "string",
+          "description": "Optional SOCKS5 proxy in host:port format."
+        },
+        "socks5_dns": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Whether to use the SOCKS5 proxy for DNS resolution. Accepts boolean true/false, integers 1/0, or strings such as 'true'/'false', 'yes'/'no', 'on'/'off'."
+        },
+        "clear": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Clear any stored proxy configuration. When true, the proxy is disabled and persisted state is removed."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

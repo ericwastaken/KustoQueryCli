@@ -31,19 +31,6 @@
           "type": "string",
           "format": "uri",
           "description": "The ADX cluster URL (e.g., https://mycluster.kusto.windows.net)."
-        },
-        "socks5_proxy": {
-          "type": "string",
-          "description": "Optional SOCKS5 proxy in host:port format."
-        },
-        "socks5_dns": {
-          "oneOf": [
-            { "type": "boolean" },
-            { "type": "integer" },
-            { "type": "string" }
-          ],
-          "default": false,
-          "description": "Whether to use the SOCKS5 proxy for DNS resolution. Accepts boolean true/false, integers 1/0, or strings such as 'true'/'false', 'yes'/'no', 'on'/'off'."
         }
       },
       "additionalProperties": false

@@ -9,8 +9,6 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 cd "$SCRIPT_DIR"
 
-ENV_FILE="$SCRIPT_DIR/.env"
-
 # Parse args
 FORCE_REBUILD=0
 PASSTHRU=()
@@ -27,13 +25,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Resolve version tag priority: env var > .env > mcp-wrapper-version > dev
-if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
-  if [ -f "$ENV_FILE" ]; then
-    KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
-  fi
-fi
-
+# Resolve version tag priority: env var > mcp-wrapper-version > dev
 if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
   if [ -f "$SCRIPT_DIR/mcp-wrapper-version" ]; then
     KUSTO_QUERY_CLI_VERSION=$(tr -d ' \t\r\n' < "$SCRIPT_DIR/mcp-wrapper-version")

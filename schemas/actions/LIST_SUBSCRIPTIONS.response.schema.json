@@ -37,6 +37,26 @@
     "login_required": {
       "type": "boolean"
     },
+    "azure_auth_mode": {
+      "type": "string",
+      "enum": [
+        "container_managed",
+        "host_shared"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "requested_subscription_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid"
+    },
+    "account": {
+      "type": "object"
+    },
     "device_login": {
       "type": "object",
       "properties": {

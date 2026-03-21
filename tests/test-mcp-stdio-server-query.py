@@ -19,12 +19,6 @@ Usage examples:
     --cluster-url https://CLUSTER.kusto.windows.net \
     --database MyDb \
     --query "MyTable | take 5" \
-    --socks5-proxy 127.0.0.1:1080 --socks5-dns
-
-  python tests/test-mcp-stdio-server-query.py \
-    --cluster-url https://CLUSTER.kusto.windows.net \
-    --database MyDb \
-    --query "MyTable | take 5" \
     --login-subscription-id <SUB_ID> --docker
 """
 
@@ -77,19 +71,12 @@ def build_query_arguments(
     cluster_url: str,
     database: str,
     kql: str,
-    socks5_proxy: Optional[str],
-    socks5_dns: bool,
 ) -> Dict[str, Any]:
     args: Dict[str, Any] = {
         "cluster_url": cluster_url,
         "database": database,
         "query": kql,
     }
-    if socks5_proxy:
-        args["socks5_proxy"] = socks5_proxy
-    # Only include socks5_dns if explicitly set true; false is default server-side
-    if socks5_dns:
-        args["socks5_dns"] = True
     return args
 
 
@@ -207,15 +194,6 @@ def main() -> int:
     parser.add_argument("--database", required=True, help="QUERY: database name")
     parser.add_argument("--query", dest="kql", required=True, help="QUERY: KQL string")
     parser.add_argument(
-        "--socks5-proxy",
-        help="Optional SOCKS5 proxy host:port (sets HTTP(S)_PROXY in server for this call)",
-    )
-    parser.add_argument(
-        "--socks5-dns",
-        action="store_true",
-        help="Use SOCKS5 for DNS resolution (server will coerce to boolean)",
-    )
-    parser.add_argument(
         "--login-subscription-id",
         help="Optional: call LOGIN first with this subscription id",
     )
@@ -231,8 +209,6 @@ def main() -> int:
         cluster_url=args.cluster_url,
         database=args.database,
         kql=args.kql,
-        socks5_proxy=args.socks5_proxy,
-        socks5_dns=bool(args.socks5_dns),
     )
 
     os.chdir(ROOT)

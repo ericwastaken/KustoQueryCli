@@ -17,7 +17,7 @@
     "execution_time_ms": 45,
     "authenticated": true,
     "request_id": "c73bcd1d-7259-40e2-89e4-844cd0a94770",
-    "wrapper_version": "1.0.0",
+    "wrapper_version": "1.2.0",
     "protocol_version": "1.0"
   }
 }

@@ -46,6 +46,21 @@ VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-wrapper-version")
 PROTOCOL_VERSION_FILE = os.path.join(os.path.dirname(__file__), "mcp-protocol-version")
 MANIFEST_FILE = os.path.join(os.path.dirname(__file__), "mcp-manifest.json")
 
+
+def _emit_stderr_log(event: str, **fields) -> None:
+    """Write a single structured log line to stderr without touching stdout."""
+    try:
+        payload = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "component": "mcp-wrapper",
+            "event": event,
+        }
+        payload.update(fields)
+        sys.stderr.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+
 def load_version():
     try:
         with open(VERSION_FILE, "r") as f:
@@ -64,6 +79,9 @@ WRAPPER_VERSION = load_version()
 PROTOCOL_VERSION = load_protocol_version()
 DEBUG_MODE = os.environ.get("MCP_DEBUG", "false").lower() == "true"
 SUBSCRIPTIONS_CACHE_FILE = os.path.expanduser("~/.azure/mcp_subscriptions_cache.json")
+PROXY_CONFIG_FILE = os.path.expanduser("~/.azure/mcp_proxy_config.json")
+AUTH_MODE_HOST_SHARED = "host_shared"
+AUTH_MODE_CONTAINER_MANAGED = "container_managed"
 
 class KustoEncoder(json.JSONEncoder):
     """
@@ -173,10 +191,117 @@ def _json_sanitize(value):
         pass
 
     # Fallback to string
+        try:
+            return str(value)
+        except Exception:
+            return None
+
+
+def _to_bool(value, default: bool = False) -> bool:
+    """Best-effort boolean coercion for loose client inputs."""
     try:
-        return str(value)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            if value == 1:
+                return True
+            if value == 0:
+                return False
+            return default
+        if isinstance(value, str):
+            v = value.strip().lower()
+            if v in {"true", "1", "yes", "on", "t", "y"}:
+                return True
+            if v in {"false", "0", "no", "off", "f", "n"}:
+                return False
+            return default
     except Exception:
+        pass
+    return default
+
+
+def _normalize_proxy_value(value):
+    if value is None:
         return None
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return str(value).strip() or None
+
+
+def _disabled_proxy_config() -> dict:
+    return {
+        "proxy_enabled": False,
+        "socks5_proxy": None,
+        "socks5_dns": False,
+    }
+
+
+def _normalize_proxy_config(raw: dict | None) -> dict:
+    if not isinstance(raw, dict):
+        return _disabled_proxy_config()
+    proxy = _normalize_proxy_value(raw.get("socks5_proxy"))
+    dns = _to_bool(raw.get("socks5_dns"), False)
+    if not proxy:
+        return _disabled_proxy_config()
+    return {
+        "proxy_enabled": True,
+        "socks5_proxy": proxy,
+        "socks5_dns": dns,
+    }
+
+
+def _load_proxy_config() -> dict:
+    try:
+        with open(PROXY_CONFIG_FILE, "r", encoding="utf-8") as f:
+            return _normalize_proxy_config(json.load(f))
+    except Exception:
+        return _disabled_proxy_config()
+
+
+def _save_proxy_config(config: dict) -> dict:
+    normalized = _normalize_proxy_config(config)
+    os.makedirs(os.path.dirname(PROXY_CONFIG_FILE), exist_ok=True)
+    with open(PROXY_CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "socks5_proxy": normalized["socks5_proxy"],
+                "socks5_dns": normalized["socks5_dns"],
+            },
+            f,
+            separators=(",", ":"),
+        )
+    return normalized
+
+
+def _clear_proxy_config() -> dict:
+    try:
+        os.remove(PROXY_CONFIG_FILE)
+    except FileNotFoundError:
+        pass
+    return _disabled_proxy_config()
+
+
+def get_azure_auth_mode() -> str:
+    mode = (os.environ.get("MCP_AZURE_AUTH_MODE", AUTH_MODE_CONTAINER_MANAGED) or "").strip().lower()
+    if mode == AUTH_MODE_HOST_SHARED:
+        return AUTH_MODE_HOST_SHARED
+    return AUTH_MODE_CONTAINER_MANAGED
+
+
+def is_host_shared_auth_mode() -> bool:
+    return get_azure_auth_mode() == AUTH_MODE_HOST_SHARED
+
+
+def get_auth_mode_message(auth_mode: str | None = None) -> str:
+    mode = auth_mode or get_azure_auth_mode()
+    if mode == AUTH_MODE_HOST_SHARED:
+        return (
+            "Authentication state is shared from the host. Manage Azure login and logout on the host "
+            "with the Azure CLI, for example `az login`, `az account set --subscription <subscription-id>`, "
+            "and `az logout`."
+        )
+    return "Authentication is managed inside the MCP container."
 
 def get_timestamp():
     """Returns the current UTC timestamp in ISO-8601 format with 'Z' suffix."""
@@ -352,7 +477,13 @@ def handle_auth_status(start_time: float):
         )
 
     authed, account = is_authenticated()
-    data = {"authenticated": authed}
+    auth_mode = get_azure_auth_mode()
+    data = {
+        "authenticated": authed,
+        "azure_auth_mode": auth_mode,
+        "message": get_auth_mode_message(auth_mode),
+        "proxy_config": _load_proxy_config(),
+    }
     if authed:
         data["account"] = account
     return create_envelope(
@@ -376,11 +507,33 @@ def _start_login_background_monitor(subscription_id: str | None, timeout_seconds
         while time.time() - start < timeout_seconds:
             authed, _ = is_authenticated()
             if authed:
+                elapsed_ms = int((time.time() - start) * 1000)
+                _emit_stderr_log(
+                    "azure_login_detected",
+                    authenticated=True,
+                    elapsed_ms=elapsed_ms,
+                    subscription_id=subscription_id,
+                )
                 if subscription_id:
-                    ok, _ = select_subscription(subscription_id)
+                    ok, err = select_subscription(subscription_id)
+                    _emit_stderr_log(
+                        "azure_subscription_selection",
+                        authenticated=True,
+                        elapsed_ms=elapsed_ms,
+                        subscription_id=subscription_id,
+                        success=ok,
+                        error=err,
+                    )
                     # Regardless of selection outcome, we consider the process finished
                 break
             time.sleep(3)
+        else:
+            _emit_stderr_log(
+                "azure_login_monitor_timeout",
+                authenticated=False,
+                timeout_seconds=timeout_seconds,
+                subscription_id=subscription_id,
+            )
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
@@ -403,7 +556,28 @@ def handle_login(start_time: float, subscription_id: str | None):
             authenticated=False,
         )
 
+    auth_mode = get_azure_auth_mode()
     authed, account = is_authenticated()
+    if is_host_shared_auth_mode():
+        data = {
+            "authenticated": authed,
+            "login_required": not authed,
+            "azure_auth_mode": auth_mode,
+            "message": get_auth_mode_message(auth_mode),
+        }
+        if authed:
+            data["account"] = account
+            data["subscriptions"] = list_enabled_subscriptions()
+        if subscription_id:
+            data["requested_subscription_id"] = subscription_id
+        return create_envelope(
+            action="LOGIN",
+            status="success",
+            data=data,
+            start_time=start_time,
+            authenticated=authed,
+        )
+
     if authed:
         # If already authenticated, optionally switch subscription
         if subscription_id:
@@ -427,7 +601,13 @@ def handle_login(start_time: float, subscription_id: str | None):
         return create_envelope(
             action="LOGIN",
             status="success",
-            data={"authenticated": True, "account": account, "subscriptions": subs},
+            data={
+                "authenticated": True,
+                "account": account,
+                "subscriptions": subs,
+                "azure_auth_mode": auth_mode,
+                "message": get_auth_mode_message(auth_mode),
+            },
             start_time=start_time,
             authenticated=True,
         )
@@ -591,6 +771,8 @@ def handle_login(start_time: float, subscription_id: str | None):
         status="success",
         data={
             "authenticated": False,
+            "login_required": True,
+            "azure_auth_mode": auth_mode,
             "verification_url": verification_url or "https://microsoft.com/devicelogin",
             "device_code": device_code,
             "message": (
@@ -616,6 +798,21 @@ def handle_logout(start_time: float):
             },
             start_time=start_time,
             authenticated=False,
+        )
+
+    auth_mode = get_azure_auth_mode()
+    if is_host_shared_auth_mode():
+        authed, _ = is_authenticated()
+        return create_envelope(
+            action="LOGOUT",
+            status="success",
+            data={
+                "logged_out": False,
+                "azure_auth_mode": auth_mode,
+                "message": get_auth_mode_message(auth_mode),
+            },
+            start_time=start_time,
+            authenticated=authed,
         )
 
     rc, _, err = run_command(["az", "logout", "--only-show-errors"])
@@ -644,7 +841,11 @@ def handle_logout(start_time: float):
     return create_envelope(
         action="LOGOUT",
         status="success",
-        data={"logged_out": True},
+        data={
+            "logged_out": True,
+            "azure_auth_mode": auth_mode,
+            "message": get_auth_mode_message(auth_mode),
+        },
         start_time=start_time,
         authenticated=False,
     )
@@ -667,6 +868,20 @@ def handle_list_subscriptions(start_time: float, subscription_id: str | None):
 
     authed, account = is_authenticated()
     if not authed:
+        if is_host_shared_auth_mode():
+            return create_envelope(
+                action="LIST_SUBSCRIPTIONS",
+                status="success",
+                data={
+                    "subscriptions": load_subscriptions_cache() or [],
+                    "login_required": True,
+                    "azure_auth_mode": get_azure_auth_mode(),
+                    "message": get_auth_mode_message(),
+                    "requested_subscription_id": subscription_id,
+                },
+                start_time=start_time,
+                authenticated=False,
+            )
         # Initiate login flow similar to handle_login, but also returns subscriptions when available
         env = handle_login(start_time, subscription_id)
         if env.get("status") == "success":
@@ -681,7 +896,12 @@ def handle_list_subscriptions(start_time: float, subscription_id: str | None):
     return create_envelope(
         action="LIST_SUBSCRIPTIONS",
         status="success",
-        data={"subscriptions": subs, "account": account},
+        data={
+            "subscriptions": subs,
+            "account": account,
+            "azure_auth_mode": get_azure_auth_mode(),
+            "message": get_auth_mode_message(),
+        },
         start_time=start_time,
         authenticated=True,
     )
@@ -728,8 +948,9 @@ def handle_query(params: dict, start_time: float):
     cluster_url = params.get("cluster_url")
     database = params.get("database")
     query = params.get("query")
-    socks5_proxy = params.get("socks5_proxy")
-    socks5_dns = bool(params.get("socks5_dns", False))
+    proxy_config = _load_proxy_config()
+    socks5_proxy = proxy_config["socks5_proxy"]
+    socks5_dns = proxy_config["socks5_dns"]
 
     try:
         rows = execute_adx_query(
@@ -776,6 +997,29 @@ def handle_query(params: dict, start_time: float):
             start_time=start_time,
             authenticated=is_authenticated()[0],
         )
+
+def handle_proxy_config(params: dict, start_time: float):
+    clear_requested = _to_bool(params.get("clear"), False)
+    if clear_requested:
+        proxy_config = _clear_proxy_config()
+    else:
+        current = _load_proxy_config()
+        if "socks5_proxy" in params:
+            current["socks5_proxy"] = _normalize_proxy_value(params.get("socks5_proxy"))
+        if "socks5_dns" in params:
+            current["socks5_dns"] = _to_bool(params.get("socks5_dns"), False)
+        if not current["socks5_proxy"]:
+            proxy_config = _clear_proxy_config()
+        else:
+            proxy_config = _save_proxy_config(current)
+
+    return create_envelope(
+        action="PROXY_CONFIG",
+        status="success",
+        data=proxy_config,
+        start_time=start_time,
+        authenticated=is_authenticated()[0],
+    )
 
 def main():
     start_time = time.time()
@@ -837,11 +1081,18 @@ def main():
                     "query": params.get("query"),
                     "database": params.get("database"),
                     "cluster_url": params.get("cluster_url"),
-                    "socks5_proxy": params.get("socks5_proxy"),
-                    "socks5_dns": bool(params.get("socks5_dns", False)),
                 },
                 start_time,
             )
+        elif action == "PROXY_CONFIG":
+            proxy_params = {}
+            if "socks5_proxy" in params:
+                proxy_params["socks5_proxy"] = params.get("socks5_proxy")
+            if "socks5_dns" in params:
+                proxy_params["socks5_dns"] = params.get("socks5_dns")
+            if "clear" in params:
+                proxy_params["clear"] = params.get("clear")
+            env = handle_proxy_config(proxy_params, start_time)
         else:
             env = create_envelope(
                 action=action or "UNKNOWN",

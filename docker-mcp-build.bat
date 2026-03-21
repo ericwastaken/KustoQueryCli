@@ -22,13 +22,7 @@ shift
 goto parse_args
 :args_done
 
-rem Resolve version: env var > .env > mcp-wrapper-version > dev
-if "%KUSTO_QUERY_CLI_VERSION%"=="" (
-  if exist "%ENV_FILE%" (
-    for /f "tokens=2 delims==" %%a in ('findstr /R "^KUSTO_QUERY_CLI_VERSION=" "%ENV_FILE%"') do set KUSTO_QUERY_CLI_VERSION=%%a
-  )
-)
-
+rem Resolve version: env var > mcp-wrapper-version > dev
 if "%KUSTO_QUERY_CLI_VERSION%"=="" (
   if exist "%~dp0mcp-wrapper-version" (
     set /p KUSTO_QUERY_CLI_VERSION=<"%~dp0mcp-wrapper-version"

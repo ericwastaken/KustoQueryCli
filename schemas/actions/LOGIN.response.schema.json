@@ -9,6 +9,13 @@
     "authenticated": {
       "type": "boolean"
     },
+    "azure_auth_mode": {
+      "type": "string",
+      "enum": [
+        "container_managed",
+        "host_shared"
+      ]
+    },
     "login_required": {
       "type": "boolean"
     },
@@ -52,6 +59,26 @@
           "type": "integer"
         }
       }
+    },
+    "account": {
+      "type": "object"
+    },
+    "subscriptions": {
+      "type": "array"
+    },
+    "verification_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "device_code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requested_subscription_id": {
+      "type": "string",
+      "format": "uuid"
     }
   },
   "additionalProperties": false

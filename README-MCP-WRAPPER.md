@@ -20,8 +20,8 @@ Example client configuration:
 
 Notes:
 - The Docker wrapper uses `--interactive` only (no TTY) to preserve MCP stdio framing.
-- It will automatically build the image on first run. You can optionally set `KUSTO_QUERY_CLI_VERSION` in your environment 
-  or `.env`; otherwise it falls back to the value in `mcp-wrapper-version`.
+- It will automatically build the image on first run. The canonical wrapper version is stored in `mcp-wrapper-version`.
+  You can optionally override the Docker tag by setting `KUSTO_QUERY_CLI_VERSION` in your environment.
 
 ### Docker (macOS / Linux / Windows with WSL)
 1. Install Docker on your workstation.
@@ -58,18 +58,20 @@ Initiates or verifies Azure CLI authentication.
     - In a Docker-for-MCP environment, the login process runs in the background for up to 120 seconds to allow for completion and 
       automated subscription selection.
     - In a Docker Compose environment, the azure login waits interactively for the Azure login confirmation.
+    - If the container was launched with `--share-host-azure-state`, `LOGIN` does not start device-code auth inside the container. It reports that authentication is host-managed and directs you to run `az login` and, if needed, `az account set --subscription <subscription-id>` on the host.
 - Response: Standard JSON envelope with `authenticated` status and either account info or device login details.
 
 ### `LOGOUT`
 Logs out from the current Azure CLI session.
 - Request: `{"action": "LOGOUT"}`
 - Behavior: Clears the Azure CLI session and removes the local subscription cache.
+- If the container was launched with `--share-host-azure-state`, `LOGOUT` does not log out from inside the container. It directs you to run `az logout` on the host instead.
 - Response: Standard JSON envelope with `logged_out: true` or an error if the logout process failed.
 
 ### `AUTH_STATUS`
 Checks the current authentication status.
 - Request: `{"action": "AUTH_STATUS"}`
-- Response: Returns `authenticated: true` with account details or `authenticated: false`.
+- Response: Returns `authenticated: true` with account details or `authenticated: false`, always includes the current `proxy_config`, and reports whether auth is `container_managed` or `host_shared`.
 
 ### `LIST_SUBSCRIPTIONS`
 Returns the list of available Azure subscriptions.
@@ -88,7 +90,30 @@ Returns the list of available Azure subscriptions.
 - Behavior:
     - If already authenticated, returns a cached list of enabled subscriptions.
     - If not authenticated, initiates a device code login flow (same as `LOGIN`).
+    - If the container was launched with `--share-host-azure-state`, `LIST_SUBSCRIPTIONS` does not initiate login inside the container. It reports that auth is host-managed and expects you to authenticate on the host first.
 - Response: Standard JSON envelope with a list of subscription objects in `data.subscriptions`.
+
+### `PROXY_CONFIG`
+Configures the default SOCKS5 proxy used by subsequent `QUERY` calls.
+- Request:
+  ```json
+  {
+    "action": "PROXY_CONFIG",
+    "params": {
+      "socks5_proxy": "localhost:1080",
+      "socks5_dns": true
+    }
+  }
+  ```
+- Parameters:
+    - `socks5_proxy` (string, optional): SOCKS5 proxy in `host:port` format.
+    - `socks5_dns` (boolean|string|integer, optional): Whether to use proxy DNS resolution. Accepts booleans, `1`/`0`, and strings such as `"true"`/`"false"`, `"yes"`/`"no"`, `"on"`/`"off"`.
+    - `clear` (boolean|string|integer, optional): Clears the stored proxy configuration when set to `true`.
+- Behavior:
+    - Persists proxy settings under `~/.azure/mcp_proxy_config.json`, so Docker runs reuse the setting via the mounted Azure state volume.
+    - The stored proxy is used for all later `QUERY` calls until `PROXY_CONFIG` clears or changes it.
+    - This remains managed by the MCP wrapper even when Azure auth state is shared from the host.
+- Response: Standard JSON envelope containing the current proxy settings in `data`.
 
 ### `QUERY`
 Executes a Kusto query against a specific cluster and database.
@@ -99,9 +124,7 @@ Executes a Kusto query against a specific cluster and database.
     "params": {
       "query": "Table | limit 10",
       "database": "MyDatabase",
-      "cluster_url": "https://mycluster.kusto.windows.net",
-      "socks5_proxy": "localhost:1080",
-      "socks5_dns": true
+      "cluster_url": "https://mycluster.kusto.windows.net"
     }
   }
   ```
@@ -109,11 +132,6 @@ Executes a Kusto query against a specific cluster and database.
     - `query` (string, required): The KQL query to execute.
     - `database` (string, required): The target database name.
     - `cluster_url` (string, required): The ADX cluster URL.
-    - `socks5_proxy` (string, optional): SOCKS5 proxy in `host:port` format.
-    - `socks5_dns` (boolean|string|integer, optional): Whether to use proxy for DNS (defaults to `false`). Accepts:
-      - Booleans: `true` / `false`
-      - Integers: `1` / `0`
-      - Strings: `"true"`, `"false"`, `"yes"`, `"no"`, `"on"`, `"off"` (case-insensitive)
 - Response: Standard JSON envelope containing a list of objects (rows) in the `data.result` field.
 
 ## Global Response Envelope
@@ -138,7 +156,7 @@ All responses follow this structure:
         "execution_time_ms": 123,
         "authenticated": true,
         "request_id": "uuid",
-        "wrapper_version": "1.0.0",
+        "wrapper_version": "1.2.0",
         "protocol_version": "1.0"
     }
 }

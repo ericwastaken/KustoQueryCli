@@ -9,6 +9,13 @@
     "logged_out": {
       "type": "boolean"
     },
+    "azure_auth_mode": {
+      "type": "string",
+      "enum": [
+        "container_managed",
+        "host_shared"
+      ]
+    },
     "message": {
       "type": "string"
     }

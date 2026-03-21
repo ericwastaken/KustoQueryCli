@@ -142,6 +142,7 @@ async def list_tools() -> list[types.Tool]:
         ("LOGIN", "Start device-code login flow (optional subscription_id)"),
         ("LOGOUT", "Logout Azure CLI session"),
         ("LIST_SUBSCRIPTIONS", "List accessible subscriptions (optional subscription_id)"),
+        ("PROXY_CONFIG", "Configure the default SOCKS5 proxy used by QUERY"),
         ("QUERY", "Run a Kusto query against a cluster/database"),
         ("MANIFEST", "Return the server capability manifest"),
     ]:
@@ -338,25 +339,36 @@ async def call_tool(name: str, arguments: dict[str, Any]):
         elif name == "QUERY":
             if log_payloads and _LOGGER.isEnabledFor(logging.DEBUG):
                 _LOGGER.debug(
-                    "[%s] QUERY params cluster_url=%s database=%s socks5_proxy=%s socks5_dns=%s",
+                    "[%s] QUERY params cluster_url=%s database=%s",
                     req_id,
                     arguments.get("cluster_url"),
                     arguments.get("database"),
-                    arguments.get("socks5_proxy"),
-                    _to_bool(arguments.get("socks5_dns"), False),
                 )
             env = kqc_wrapper.handle_query(
                 {
-                    # Forward arguments using the key names expected by the wrapper
                     "cluster_url": arguments.get("cluster_url"),
                     "database": arguments.get("database"),
                     "query": arguments.get("query"),
-                    "socks5_proxy": arguments.get("socks5_proxy"),
-                    # Coerce various representations to a strict boolean expected by the wrapper
-                    "socks5_dns": _to_bool(arguments.get("socks5_dns"), False),
                 },
                 start,
             )
+        elif name == "PROXY_CONFIG":
+            if log_payloads and _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "[%s] PROXY_CONFIG params socks5_proxy=%s socks5_dns=%s clear=%s",
+                    req_id,
+                    arguments.get("socks5_proxy"),
+                    _to_bool(arguments.get("socks5_dns"), False),
+                    _to_bool(arguments.get("clear"), False),
+                )
+            proxy_args = {}
+            if "socks5_proxy" in arguments:
+                proxy_args["socks5_proxy"] = arguments.get("socks5_proxy")
+            if "socks5_dns" in arguments:
+                proxy_args["socks5_dns"] = _to_bool(arguments.get("socks5_dns"), False)
+            if "clear" in arguments:
+                proxy_args["clear"] = _to_bool(arguments.get("clear"), False)
+            env = kqc_wrapper.handle_proxy_config(proxy_args, start)
         elif name == "MANIFEST":
             # Mirror MANIFEST behavior from wrapper for convenience (no params)
             _LOGGER.debug("[%s] MANIFEST start", req_id)

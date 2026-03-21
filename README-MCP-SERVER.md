@@ -9,7 +9,7 @@ Model Context Protocol.
 
 - A lightweight stdio server (`mcp-stdio-server.py`) built on the official Python MCP SDK
 - A set of tools mapped to atomic actions implemented by the wrapper:
-  - `AUTH_STATUS`, `LOGIN`, `LOGOUT`, `LIST_SUBSCRIPTIONS`, `QUERY`, and `MANIFEST`
+  - `AUTH_STATUS`, `LOGIN`, `LOGOUT`, `LIST_SUBSCRIPTIONS`, `PROXY_CONFIG`, `QUERY`, and `MANIFEST`
 - Dynamic tool input schemas loaded from the repository’s canonical JSON Schemas under `schemas/`
 - Introspection utilities so clients can fetch the authoritative artifacts directly:
   - `GET_SCHEMA` — returns any JSON Schema under `schemas/`
@@ -32,19 +32,27 @@ The recommended way is to let your MCP client spawn the Docker wrapper script:
 
 Notes:
 - The Docker wrapper runs `python mcp-stdio-server.py` with stdio attached (no TTY) to preserve MCP framing.
-- The image is built automatically on first run based on `mcp-wrapper-version` unless you pin `KUSTO_QUERY_CLI_VERSION`.
+- The image is built automatically on first run based on `mcp-wrapper-version`, which is the canonical wrapper version file. You can still override the Docker tag explicitly by setting `KUSTO_QUERY_CLI_VERSION` in the environment.
 - Optional `MCP_CONTAINER_NAME`: set this env var if you want a predictable Docker container name (e.g., for easier `docker logs` or manual inspection). By default it is omitted so Docker assigns a random name, allowing multiple concurrent MCP containers without conflict. Containers are started with `--rm` and auto-remove when they stop.
 - Shared Azure CLI state via `AZURE_STATE_VOLUME`: by default the wrapper mounts a persistent Docker volume `kusto-query-cli-mcp-azure-state` at `/root/.azure`. This lets multiple containers (and successive runs) share Azure CLI credentials/state, so you don’t need to re-authenticate on every run. You can override it, for example:
     - Bash: `AZURE_STATE_VOLUME=my-azure-state ./docker-mcp.sh`
     - Windows: `set AZURE_STATE_VOLUME=my-azure-state && docker-mcp.bat`
     - To isolate credentials per container, set a unique volume per instance (or point to an empty one).
+- Optional `--share-host-azure-state`: instead of the named Docker volume, mount your host Azure CLI state into the container at `/root/.azure`.
+    - Bash/macOS/Linux: `./docker-mcp.sh --share-host-azure-state`
+    - Windows CMD: `docker-mcp.bat --share-host-azure-state`
+    - This uses your host Azure CLI directory directly:
+      - macOS/Linux: `$HOME/.azure`
+      - Windows CMD: `%USERPROFILE%\.azure`
+    - Requirement: when using `--share-host-azure-state`, Azure CLI must already be installed on the host, and you must complete authentication on the host first, for example with `az login`, before expecting the MCP container to reuse that state.
+    - In this mode, the MCP `LOGIN` and `LOGOUT` tools do not initiate authentication inside the container. They instead report that auth is host-managed and direct you to run `az login`, `az account set --subscription <subscription-id>`, or `az logout` on the host. `AUTH_STATUS` reports whether auth is `container_managed` or `host_shared`.
 
 ### Build helper and force rebuilds
 
 - Build-only helper scripts:
   - Bash/macOS/Linux: `./docker-mcp-build.sh`
   - Windows CMD: `docker-mcp-build.bat`
-- These scripts resolve the image version in this order: `KUSTO_QUERY_CLI_VERSION` env var > `.env` file > `mcp-wrapper-version` file > `dev`.
+- These scripts resolve the image version in this order: `KUSTO_QUERY_CLI_VERSION` env var > `mcp-wrapper-version` file > `dev`.
 - On success, they print the resolved Docker image tag (e.g., `kusto-query-cli:0.3.1`) to stdout so other scripts can consume it.
 
 Force rebuild flag:
@@ -143,5 +151,3 @@ The stdio server delegates atomic action execution to the MCP wrapper module. Fo
 (authentication flows, query parameters, error envelopes), see:
 
 - [`README-MCP-WRAPPER.md`](README-MCP-WRAPPER.md)
-
-

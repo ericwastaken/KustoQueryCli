@@ -9,13 +9,20 @@ pushd %~dp0 >nul
 
 set ENV_FILE=%~dp0.env
 
-rem Parse args: support --force for rebuild; pass all others to the server
+rem Parse args: support --force for rebuild, --share-host-azure-state for a
+rem host bind mount; pass all others to the server
 set FORCE=
+set SHARE_HOST_AZURE_STATE=
 set PASSTHRU_ARGS=
 :parse_loop
 if "%~1"=="" goto parse_done
 if /I "%~1"=="--force" (
   set FORCE=1
+  shift
+  goto parse_loop
+)
+if /I "%~1"=="--share-host-azure-state" (
+  set SHARE_HOST_AZURE_STATE=1
   shift
   goto parse_loop
 )
@@ -55,11 +62,16 @@ if defined MCP_LOG_PAYLOADS (
 
 rem Use a stable/shared Azure CLI state volume by default (overridable)
 if not defined AZURE_STATE_VOLUME set AZURE_STATE_VOLUME=kusto-query-cli-mcp-azure-state
+set AZURE_MOUNT_SOURCE=%AZURE_STATE_VOLUME%
+set MCP_AZURE_AUTH_MODE=container_managed
+if defined SHARE_HOST_AZURE_STATE set AZURE_MOUNT_SOURCE=%USERPROFILE%\.azure
+if defined SHARE_HOST_AZURE_STATE set MCP_AZURE_AUTH_MODE=host_shared
 rem docker-mcp-build.bat performed Dockerfile check and build if required.
 
 :::: Run the MCP stdio server in a fresh, auto-removed container (stdin attached)
 docker run --rm -i %NAME_FLAG% %ENV_FLAGS% ^
-  -v "%AZURE_STATE_VOLUME%:/root/.azure" ^
+  -e "MCP_AZURE_AUTH_MODE=%MCP_AZURE_AUTH_MODE%" ^
+  -v "%AZURE_MOUNT_SOURCE%:/root/.azure" ^
   %IMAGE_TAG% ^
   python mcp-stdio-server.py %PASSTHRU_ARGS%
 set EXITCODE=%ERRORLEVEL%

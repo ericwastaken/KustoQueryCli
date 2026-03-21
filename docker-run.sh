@@ -7,24 +7,38 @@ set -e
 
 # The service name from docker-compose.yml
 SERVICE_NAME="kusto-query-cli"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+VERSION_FILE="$SCRIPT_DIR/mcp-wrapper-version"
+ENV_FILE="$SCRIPT_DIR/.env"
+
+resolve_version() {
+  if [ -n "$KUSTO_QUERY_CLI_VERSION" ]; then
+    echo "$KUSTO_QUERY_CLI_VERSION"
+    return 0
+  fi
+
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d ' \t\r\n' < "$VERSION_FILE"
+    return 0
+  fi
+
+  if [ -f "$ENV_FILE" ]; then
+    grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2
+    return 0
+  fi
+
+  return 1
+}
 
 # Function to check if the Docker image exists
 image_exists() {
   local image_tag
-  # Extract image tag from local .env file
-  ENV_FILE="$(dirname "$0")/.env"
-  
-  if [ ! -f "$ENV_FILE" ]; then
-    echo "Error: .env file not found at $ENV_FILE" >&2
-    echo "The .env file must exist and contain KUSTO_QUERY_CLI_VERSION variable." >&2
-    exit 1
-  fi
-  
-  KUSTO_QUERY_CLI_VERSION=$(grep -E '^KUSTO_QUERY_CLI_VERSION=' "$ENV_FILE" | cut -d'=' -f2)
-  
+
+  KUSTO_QUERY_CLI_VERSION="$(resolve_version)"
+
   if [ -z "$KUSTO_QUERY_CLI_VERSION" ]; then
-    echo "Error: KUSTO_QUERY_CLI_VERSION not set in $ENV_FILE" >&2
-    echo "Please add KUSTO_QUERY_CLI_VERSION=<version> to your .env file." >&2
+    echo "Error: unable to resolve KUSTO_QUERY_CLI_VERSION." >&2
+    echo "Set KUSTO_QUERY_CLI_VERSION in the environment or update $VERSION_FILE." >&2
     exit 1
   fi
   
@@ -39,6 +53,8 @@ image_exists() {
   fi
   return 0 # Image exists
 }
+
+export KUSTO_QUERY_CLI_VERSION="${KUSTO_QUERY_CLI_VERSION:-$(resolve_version)}"
 
 # Ensure we are in the directory where docker-compose.yml resides
 if [ ! -f "docker-compose.yml" ]; then

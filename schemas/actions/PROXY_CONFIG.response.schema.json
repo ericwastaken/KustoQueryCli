@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PROXY_CONFIG Action Response Data",
+  "type": "object",
+  "required": [
+    "proxy_enabled",
+    "socks5_proxy",
+    "socks5_dns"
+  ],
+  "properties": {
+    "proxy_enabled": {
+      "type": "boolean",
+      "description": "Whether a SOCKS5 proxy is currently configured."
+    },
+    "socks5_proxy": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Configured SOCKS5 proxy in host:port format, or null when disabled."
+    },
+    "socks5_dns": {
+      "type": "boolean",
+      "description": "Whether DNS resolution is configured to go through the SOCKS5 proxy."
+    }
+  },
+  "additionalProperties": false
+}

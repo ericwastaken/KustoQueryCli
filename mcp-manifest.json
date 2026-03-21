@@ -1,7 +1,7 @@
 {
   "name": "KustoQueryCli MCP Wrapper",
   "description": "A formal MCP wrapper for executing Kusto queries via the Azure CLI.",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "protocol_version": "1.0",
   "transport": "stdin/stdout",
   "authentication_requirements": {
@@ -22,6 +22,7 @@
     "LOGOUT",
     "AUTH_STATUS",
     "LIST_SUBSCRIPTIONS",
+    "PROXY_CONFIG",
     "QUERY"
   ],
   "action_definitions": {
@@ -52,6 +53,12 @@
     "LIST_SUBSCRIPTIONS": {
       "request_schema": "schemas/actions/LIST_SUBSCRIPTIONS.request.schema.json",
       "response_schema": "schemas/actions/LIST_SUBSCRIPTIONS.response.schema.json",
+      "idempotent": true,
+      "requires_auth": false
+    },
+    "PROXY_CONFIG": {
+      "request_schema": "schemas/actions/PROXY_CONFIG.request.schema.json",
+      "response_schema": "schemas/actions/PROXY_CONFIG.response.schema.json",
       "idempotent": true,
       "requires_auth": false
     },
