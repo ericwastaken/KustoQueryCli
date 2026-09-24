@@ -39,3 +39,7 @@ Inspect response `status` and error details before using `data`. The response
 includes application/protocol metadata; see [mcp-contract.md](../../mcp-contract.md).
 Authentication and persistent proxy changes follow the shared
 [authentication](authentication.md) and [proxy](proxy.md) guidance.
+
+Malformed request shapes (including arrays/scalars at the root or non-object
+`params`) return an `INVALID_REQUEST` validation envelope. Invalid JSON text
+returns `JSON_PARSE_ERROR`; neither dispatches a query.

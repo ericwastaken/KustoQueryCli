@@ -73,6 +73,29 @@ class PythonEntrypointTests(unittest.TestCase):
                     self.assertIn("--adxUrl", result.stdout)
 
 
+    def test_one_shot_rejects_non_object_requests_with_validation_envelopes(self):
+        requests = [[], [1], "query", 1, False, None,
+                    *[{"action": "QUERY", "params": value} for value in ([], [1], "query", 1, False, None)],
+                    {"action": ["QUERY"]}]
+        for request in requests:
+            with self.subTest(request=request):
+                output = io.StringIO()
+                with (
+                    mock.patch.object(sys, "stdin", io.StringIO(json.dumps(request))),
+                    contextlib.redirect_stdout(output),
+                    mock.patch.object(auth, "is_azure_cli_installed", return_value=True),
+                    mock.patch.object(actions, "handle_query") as query_handler,
+                ):
+                    runpy.run_path(str(ROOT / "mcp-wrapper.py"), run_name="__main__")
+                response = json.loads(output.getvalue())
+                self.assertEqual(response["status"], "error")
+                self.assertEqual(response["error"]["type"], "validation")
+                self.assertEqual(response["error"]["code"], "INVALID_REQUEST")
+                self.assertIsInstance(response["action"], str)
+                self.assertEqual(response["metadata"]["wrapper_version"], resources.load_version())
+                query_handler.assert_not_called()
+
+
     def test_one_shot_query_preserves_envelope_and_serialization(self):
         identifier = uuid.UUID("28ecff3a-5b63-458d-a51a-5b62e45c88c2")
         timestamp = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)

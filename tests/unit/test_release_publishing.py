@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -14,6 +15,21 @@ from release_checks import CheckFailure
 
 
 class PublishingTests(unittest.TestCase):
+
+
+    def test_tag_preparation_does_not_require_repository_push_permission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "outputs"
+            with (
+                patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_OUTPUT": str(output)}),
+                patch.object(publisher, "check_metadata", return_value="2.0.0"),
+                patch.object(publisher, "git", side_effect=["commit", "commit", "", "origin/main"]),
+                patch.object(publisher, "api", side_effect=AssertionError("Prepare must not request API write access")),
+                patch("release.repository", side_effect=AssertionError("Local-only permission guard")),
+            ):
+                publisher.prepare("v2.0.0")
+            self.assertIn("version=2.0.0", output.read_text())
+            self.assertIn("commit=commit", output.read_text())
 
 
     def test_maintenance_and_candidates_do_not_replace_latest(self):

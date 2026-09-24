@@ -8,6 +8,7 @@
 - Separate explicit container image selection from local builds, retaining authentication modes and state volumes.
 - Share local and CI release validation, with interactive version selection and conflict checks.
 - Separate automated unit/protocol checks from manual Azure integration helpers.
+- Return validation envelopes for malformed one-shot requests instead of exiting without a response.
 
 - Publish tested Linux AMD64 and ARM64 images to GHCR with matching GitHub releases and digest manifests.
 

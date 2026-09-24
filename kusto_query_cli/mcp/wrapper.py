@@ -60,8 +60,24 @@ def main():
         )
         return
 
-    action = (payload or {}).get("action")
-    params = (payload or {}).get("params") or {}
+    is_object = isinstance(payload, dict)
+    action = payload.get("action") if is_object else None
+    params = payload.get("params", {}) if is_object else None
+    if not is_object or not isinstance(params, dict) or (action is not None and not isinstance(action, str)):
+        print_json(create_envelope(
+            action=action if isinstance(action, str) else "UNKNOWN",
+            status="error",
+            error={
+                "type": "validation",
+                "code": "INVALID_REQUEST",
+                "message": "Request and params must be JSON objects; action must be a string.",
+                "retryable": False,
+                "severity": "low",
+            },
+            start_time=start_time,
+            authenticated=False,
+        ))
+        return
 
     try:
         if action == "MANIFEST":

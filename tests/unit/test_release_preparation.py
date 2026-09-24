@@ -62,7 +62,7 @@ class RegistryTests(unittest.TestCase):
 
 
     def test_auth_and_network_errors_are_not_absence(self):
-        for error in ("403 Forbidden", "401 Unauthorized", "dial: host not found", "connection timeout", "failed to authorize: manifest unknown"):
+        for error in ("403 Forbidden", "401 Unauthorized", "dial: host not found", "connection timeout", "no descriptor found for ghcr.io/owner/repo:1.4.0", "failed to authorize: manifest unknown"):
             with self.subTest(error=error), self.assertRaisesRegex(CheckFailure, "incomplete"):
                 self.check(1, error)
 
