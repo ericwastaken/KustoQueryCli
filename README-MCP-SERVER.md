@@ -20,6 +20,15 @@ and ensures a single source of truth for clients.
 
 ## How to run
 
+Version 1.3.0 uses MCP Python SDK 2.2 or newer within the 2.x series. The server
+supports modern discovery and legacy initialization, so existing stdio client
+configurations continue to work. Tool names, input schemas, structured results,
+and tool-error responses are preserved. Native installs require Python 3.12+
+and `pip install -r requirements.txt`; Docker uses Python 3.12.
+
+The `mcp-protocol-version` file describes this project's action-envelope contract,
+not the MCP SDK major version or the negotiated MCP wire protocol revision.
+
 The recommended way is to let your MCP client spawn the Docker wrapper script:
 
 ```json
@@ -78,6 +87,19 @@ python mcp-stdio-server.py
 ```
 
 You can also use the helper scripts under `tests/` to exercise `initialize`, `tools/list`, and `tools/call` flows.
+
+Automated regression checks:
+
+```bash
+python -m unittest discover -s tests -p 'test_*.py' -v
+python tests/mcp_smoke.py
+python tests/mcp_smoke.py docker run --rm -i kusto-query-cli:1.3.0 python mcp-stdio-server.py
+```
+
+The smoke check uses temporary Azure CLI configuration and performs no login,
+logout, or live query. With MCP 2 installed it tests modern and legacy sessions;
+running it with an MCP 1 environment against an MCP 2 server also checks older
+SDK clients. An explicit server command follows the script name.
 
 ## Protocol contract and manifest
 

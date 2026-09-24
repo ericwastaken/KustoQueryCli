@@ -118,6 +118,7 @@ def run(
             },
         )
         pretty("initialize", read_frame(proc))
+        write_frame(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
 
         next_id = 2
 

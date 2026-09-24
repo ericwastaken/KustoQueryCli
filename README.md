@@ -27,8 +27,8 @@ the script in a Docker container, see the next section.
 
 ### Prerequisites
 
-Before you begin, ensure you have Python installed on your system. This script was developed with Python 3.8, but it 
-should work with Python 3.6 and above. You also need `pip` for installing Python packages.
+Use Python 3.12 or newer, matching the supported runtime in the manifest and Docker
+image. You also need `pip` for installing Python packages.
 
 Under macOS and Linux, Python is usually pre-installed. You can check the version of Python installed on your system 
 by running the following command in your terminal:

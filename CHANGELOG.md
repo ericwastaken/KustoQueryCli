@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0
+
+- Support MCP Python SDK 2.2 and newer 2.x releases (`mcp>=2.2.0,<3`).
+- Migrate low-level handler registration and explicit result construction while
+    preserving tool names, schemas, structured JSON results, and readable errors.
+- Explicitly validate tool arguments before invoking Azure or Kusto operations.
+- Support both modern MCP discovery and legacy initialization over stdio.
+- Add adapter regression tests and stdio smoke checks for modern and older clients.
+- Fix fallback query-value serialization so UUID values are strings instead of null.
+
+Upgrade native environments with `pip install -r requirements.txt`. Docker users
+should build the new `1.3.0` image using `./docker-mcp-build.sh` or
+`docker-mcp-build.bat`. Update an explicit `KUSTO_QUERY_CLI_VERSION` override to
+`1.3.0`. Existing MCP client commands and Azure state mounts continue to work.
+
 ## 1.2.1
 
 - Limit the MCP Python SDK to `mcp>=1.26.0,<2` for the existing stdio server.

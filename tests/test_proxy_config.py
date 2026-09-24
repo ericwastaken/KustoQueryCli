@@ -6,6 +6,7 @@ import tempfile
 import time
 import types
 import unittest
+from unittest.mock import patch
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -15,16 +16,18 @@ WRAPPER_PATH = ROOT / "mcp-wrapper.py"
 def load_wrapper_module():
     fake_kusto_handler = types.ModuleType("lib.KustoHandler")
     fake_kusto_handler.execute_adx_query = lambda **kwargs: []
-    sys.modules["lib.KustoHandler"] = fake_kusto_handler
 
     fake_azure_helper = types.ModuleType("lib.AzureCliHelper")
     fake_azure_helper.is_azure_cli_installed = lambda *_args, **_kwargs: True
-    sys.modules["lib.AzureCliHelper"] = fake_azure_helper
 
     spec = importlib.util.spec_from_file_location("kqc_wrapper_test", WRAPPER_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
-    spec.loader.exec_module(module)
+    with patch.dict(sys.modules, {
+        "lib.KustoHandler": fake_kusto_handler,
+        "lib.AzureCliHelper": fake_azure_helper,
+    }):
+        spec.loader.exec_module(module)
     return module
 
 

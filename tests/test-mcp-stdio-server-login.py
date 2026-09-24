@@ -90,6 +90,7 @@ def run(subscription_id: str, use_docker: bool) -> int:
             },
         )
         pretty("initialize", read_frame(proc))
+        write_frame(proc, {"jsonrpc": "2.0", "method": "notifications/initialized"})
 
         # 2) tools/call LOGIN
         write_frame(
