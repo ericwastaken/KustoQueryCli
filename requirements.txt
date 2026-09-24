@@ -1,5 +1,5 @@
 azure-kusto-data>=6.0.2
 pandas>=3.0.1
 PySocks>=1.7.1
-# MCP SDK for stdio server
+# The stdio server uses MCP 1.x handler APIs; MCP 2.x requires an adapter migration.
 mcp>=1.26.0,<2
