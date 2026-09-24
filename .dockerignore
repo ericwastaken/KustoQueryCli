@@ -9,6 +9,7 @@
 !entrypoint.sh
 !requirements.txt
 !lib/
+!kusto_query_cli/
 !mcp-manifest.json
 !mcp-wrapper-version
 !mcp-protocol-version
@@ -21,3 +22,7 @@
 !examples/
 !LICENSE
 !README.md
+
+# Do not include Python bytecode from an otherwise included runtime directory.
+**/__pycache__/
+**/*.pyc

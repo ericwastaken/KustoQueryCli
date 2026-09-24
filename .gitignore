@@ -1,3 +1,6 @@
 /venv/
 /tmp/
 /queries/
+/.release/
+__pycache__/
+*.py[cod]

@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 QUERY = {
     "cluster_url": "https://help.kusto.windows.net",
     "database": "Samples",
@@ -24,16 +24,18 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
 
 
     def setUp(self):
-        spec = importlib.util.spec_from_file_location("kqc_server_test", ROOT / "mcp-stdio-server.py")
-        self.module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(self.module)
-        self.wrapper = self.module.kqc_wrapper
+        from kusto_query_cli.core import auth, proxy
+        from kusto_query_cli.mcp import actions, server
+        importlib.reload(auth)
+        importlib.reload(proxy)
+        self.wrapper = importlib.reload(actions)
+        self.module = importlib.reload(server)
         directory = self.enterContext(tempfile.TemporaryDirectory())
-        self.wrapper.PROXY_CONFIG_FILE = str(Path(directory) / "proxy.json")
-        self.wrapper.SUBSCRIPTIONS_CACHE_FILE = str(Path(directory) / "subscriptions.json")
-        self.wrapper.is_azure_cli_installed = Mock(return_value=True)
-        self.wrapper.is_authenticated = Mock(return_value=(False, {}))
-        self.wrapper.run_command = Mock(side_effect=AssertionError("Unexpected Azure CLI command"))
+        self.wrapper.proxy.PROXY_CONFIG_FILE = str(Path(directory) / "proxy.json")
+        self.wrapper.auth.SUBSCRIPTIONS_CACHE_FILE = str(Path(directory) / "subscriptions.json")
+        self.wrapper.auth.is_azure_cli_installed = Mock(return_value=True)
+        self.wrapper.auth.is_authenticated = Mock(return_value=(False, {}))
+        self.wrapper.auth.run_command = Mock(side_effect=AssertionError("Unexpected Azure CLI command"))
         self.wrapper.execute_adx_query = Mock(return_value=[])
         self.enterContext(patch.dict(os.environ, {"MCP_AZURE_AUTH_MODE": "host_shared"}))
 
@@ -133,27 +135,27 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(logout["logged_out"])
             subscriptions = self.assert_success(await client.call_tool("LIST_SUBSCRIPTIONS"))
             self.assertTrue(subscriptions["login_required"])
-        self.wrapper.run_command.assert_not_called()
+        self.wrapper.auth.run_command.assert_not_called()
 
 
     async def test_container_auth_and_subscription_dispatch(self):
-        self.wrapper.is_authenticated.return_value = (True, {"user": "test"})
-        self.wrapper.list_enabled_subscriptions = Mock(return_value=[{"id": "test-subscription"}])
-        self.wrapper.select_subscription = Mock(return_value=(True, None))
-        self.wrapper.run_command = Mock(return_value=(0, "", ""))
+        self.wrapper.auth.is_authenticated.return_value = (True, {"user": "test"})
+        self.wrapper.auth.list_enabled_subscriptions = Mock(return_value=[{"id": "test-subscription"}])
+        self.wrapper.auth.select_subscription = Mock(return_value=(True, None))
+        self.wrapper.auth.run_command = Mock(return_value=(0, "", ""))
         subscription_id = "11111111-1111-1111-1111-111111111111"
         with patch.dict(os.environ, {"MCP_AZURE_AUTH_MODE": "container_managed"}):
             async with Client(self.module.server) as client:
                 login = self.assert_success(await client.call_tool("LOGIN", {"subscription_id": subscription_id}))
                 self.assertTrue(login["authenticated"])
-                self.wrapper.select_subscription.assert_called_once_with(subscription_id)
+                self.wrapper.auth.select_subscription.assert_called_once_with(subscription_id)
                 subscriptions = self.assert_success(await client.call_tool("LIST_SUBSCRIPTIONS"))
                 self.assertEqual(subscriptions["subscriptions"], [{"id": "test-subscription"}])
-                self.assertTrue(Path(self.wrapper.SUBSCRIPTIONS_CACHE_FILE).exists())
+                self.assertTrue(Path(self.wrapper.auth.SUBSCRIPTIONS_CACHE_FILE).exists())
                 logout = self.assert_success(await client.call_tool("LOGOUT"))
                 self.assertTrue(logout["logged_out"])
-                self.assertFalse(Path(self.wrapper.SUBSCRIPTIONS_CACHE_FILE).exists())
-        self.wrapper.run_command.assert_called_once_with(["az", "logout", "--only-show-errors"])
+                self.assertFalse(Path(self.wrapper.auth.SUBSCRIPTIONS_CACHE_FILE).exists())
+        self.wrapper.auth.run_command.assert_called_once_with(["az", "logout", "--only-show-errors"])
 
 
     async def test_proxy_persists_across_sessions_and_clears(self):
@@ -162,7 +164,7 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
                 "socks5_proxy": "proxy.internal:1080", "socks5_dns": "yes",
             }))
             self.assertTrue(data["socks5_dns"])
-        self.assertTrue(Path(self.wrapper.PROXY_CONFIG_FILE).exists())
+        self.assertTrue(Path(self.wrapper.proxy.PROXY_CONFIG_FILE).exists())
         async with Client(self.module.server) as client:
             self.assert_success(await client.call_tool("QUERY", QUERY))
             self.wrapper.execute_adx_query.assert_called_with(
@@ -171,7 +173,7 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.assert_success(await client.call_tool("PROXY_CONFIG", {"clear": "true"}))
             self.assert_success(await client.call_tool("QUERY", QUERY))
             self.wrapper.execute_adx_query.assert_called_with(**QUERY, socks5_proxy=None, socks5_dns=False)
-        self.assertFalse(Path(self.wrapper.PROXY_CONFIG_FILE).exists())
+        self.assertFalse(Path(self.wrapper.proxy.PROXY_CONFIG_FILE).exists())
 
 
 class ReleaseMetadataTests(unittest.TestCase):

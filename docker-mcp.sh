@@ -57,18 +57,12 @@ if [ -z "$MCP_LOG_PAYLOADS" ] && [ -f "$ENV_FILE" ]; then
   MCP_LOG_PAYLOADS=$(grep -E '^MCP_LOG_PAYLOADS=' "$ENV_FILE" | cut -d'=' -f2)
 fi
 
-# Ensure we are in the project root
-if [ ! -f "Dockerfile" ]; then
-  echo "Error: Dockerfile not found in the current directory." >&2
-  exit 1
-fi
-
-# Build (if needed) and retrieve the IMAGE_TAG from the build helper to avoid duplication
+# Image acquisition is independent of mounts and the MCP execution contract.
+FORCE_FLAG=""
 if [ "$FORCE_REBUILD" -eq 1 ]; then
-  IMAGE_TAG="$("$SCRIPT_DIR/docker-mcp-build.sh" --force)"
-else
-  IMAGE_TAG="$("$SCRIPT_DIR/docker-mcp-build.sh")"
+  FORCE_FLAG="--force"
 fi
+IMAGE_TAG="$("$SCRIPT_DIR/scripts/docker/acquire-image.sh" "$FORCE_FLAG")"
 
 # Prepare optional --name flag only if MCP_CONTAINER_NAME is explicitly set
 NAME_FLAG=()

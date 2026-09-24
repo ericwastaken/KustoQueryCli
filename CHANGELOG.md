@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0
+
+- Reorganize documentation around MCP, CLI, container consumption, development, and release tasks.
+- Extract shared Python services and separate CLI, MCP transport, and one-shot adapters into `kusto_query_cli`.
+- Preserve root launch commands and legacy `lib` imports while moving implementation into the package.
+- Separate explicit container image selection from local builds, retaining authentication modes and state volumes.
+- Share local and CI release validation, with interactive version selection and conflict checks.
+- Separate automated unit/protocol checks from manual Azure integration helpers.
+
+- Publish tested Linux AMD64 and ARM64 images to GHCR with matching GitHub releases and digest manifests.
+
 ## 1.3.0
 
 - Support MCP Python SDK 2.2 and newer 2.x releases (`mcp>=2.2.0,<3`).
