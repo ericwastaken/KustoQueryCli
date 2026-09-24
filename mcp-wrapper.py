@@ -191,10 +191,10 @@ def _json_sanitize(value):
         pass
 
     # Fallback to string
-        try:
-            return str(value)
-        except Exception:
-            return None
+    try:
+        return str(value)
+    except Exception:
+        return None
 
 
 def _to_bool(value, default: bool = False) -> bool:

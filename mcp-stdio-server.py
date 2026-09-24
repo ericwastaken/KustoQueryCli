@@ -28,8 +28,8 @@ except Exception:
 
 import mcp.server.stdio
 import mcp.types as types
-from mcp.server.lowlevel import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
+import jsonschema
+from mcp.server import Server, ServerRequestContext
 
 
 # Helpers
@@ -71,9 +71,6 @@ assert _spec and _spec.loader
 _spec.loader.exec_module(kqc_wrapper)  # type: ignore[attr-defined]
 
 
-server = Server("kusto-query-cli")
-
-
 # ---- Logging setup ----
 def _init_logging() -> logging.Logger:
     """Initialize a stderr logger for the MCP server.
@@ -98,7 +95,6 @@ def _init_logging() -> logging.Logger:
 _LOGGER = _init_logging()
 
 
-@server.list_tools()
 async def list_tools() -> list[types.Tool]:
     """Expose supported actions as MCP tools using canonical JSON Schemas and Examples."""
     _LOGGER.debug("list_tools called")
@@ -152,7 +148,7 @@ async def list_tools() -> list[types.Tool]:
             types.Tool(
                 name=action,
                 description=full_desc,
-                inputSchema=_schema_params_for(action),
+                input_schema=_schema_params_for(action),
             )
         )
 
@@ -164,7 +160,7 @@ async def list_tools() -> list[types.Tool]:
                 "Return a JSON Schema file content from the repository (request/response/action/global). "
                 "Arguments: { path: string relative to schemas/ }"
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "path": {"type": "string", "description": "Relative path under schemas/"}
@@ -180,7 +176,7 @@ async def list_tools() -> list[types.Tool]:
             description=(
                 "Return an example JSON payload from the repository. Arguments: { name: string from examples/ }"
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "File name under examples/"}
@@ -195,7 +191,6 @@ async def list_tools() -> list[types.Tool]:
     return tools
 
 
-@server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]):
     """Dispatch MCP tool calls to the existing action handlers."""
     start = time.time()
@@ -498,6 +493,53 @@ async def call_tool(name: str, arguments: dict[str, Any]):
         raise
 
 
+async def on_list_tools(
+    ctx: ServerRequestContext, params: types.PaginatedRequestParams | None
+) -> types.ListToolsResult:
+    return types.ListToolsResult(tools=await list_tools())
+
+
+def _tool_error(message: str) -> types.CallToolResult:
+    return types.CallToolResult(
+        content=[types.TextContent(type="text", text=message)],
+        is_error=True,
+    )
+
+
+async def on_call_tool(
+    ctx: ServerRequestContext, params: types.CallToolRequestParams
+) -> types.CallToolResult:
+    """Preserve the validation, result and error behavior of the MCP 1.x adapter."""
+    try:
+        tool = next((tool for tool in await list_tools() if tool.name == params.name), None)
+        if tool is None:
+            return _tool_error(f"Unknown tool: {params.name}")
+
+        arguments = params.arguments or {}
+        try:
+            jsonschema.validate(instance=arguments, schema=tool.input_schema)
+        except jsonschema.ValidationError as exc:
+            return _tool_error(f"Input validation error: {exc.message}")
+
+        data = await call_tool(params.name, arguments)
+        return types.CallToolResult(
+            content=[types.TextContent(type="text", text=json.dumps(data, indent=2))],
+            structured_content=data,
+            is_error=False,
+        )
+    except Exception as exc:
+        # Tool failures must remain visible to the model, not become RPC errors.
+        return _tool_error(str(exc))
+
+
+server = Server(
+    "kusto-query-cli",
+    version=kqc_wrapper.load_version(),
+    on_list_tools=on_list_tools,
+    on_call_tool=on_call_tool,
+)
+
+
 async def run() -> None:
     version = kqc_wrapper.load_version()
     # Attempt to read protocol version for logging context
@@ -522,14 +564,7 @@ async def run() -> None:
             await server.run(
                 read_stream,
                 write_stream,
-                InitializationOptions(
-                    server_name="kusto-query-cli",
-                    server_version=version,
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
+                server.create_initialization_options(),
             )
         finally:
             _LOGGER.info("Server.run has completed; shutting down")

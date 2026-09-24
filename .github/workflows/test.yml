@@ -1,0 +1,69 @@
+name: Tests
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    python:
+        name: Python ${{ matrix.python-version }} / MCP ${{ matrix.mcp-version }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - python-version: '3.12'
+                      mcp-version: '2.2.0'
+                      mcp-spec: 'mcp==2.2.0'
+                      legacy-spec: 'mcp==1.26.0'
+                    - python-version: '3.13'
+                      mcp-version: 'latest 2.x'
+                      mcp-spec: 'mcp>=2.2.0,<3'
+                      legacy-spec: 'mcp>=1.26.0,<2'
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+            - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+              with:
+                  python-version: ${{ matrix.python-version }}
+                  cache: pip
+            - name: Install dependencies
+              env:
+                  MCP_SPEC: ${{ matrix.mcp-spec }}
+              run: python -m pip install -r requirements.txt "$MCP_SPEC"
+            - name: Run regression tests
+              run: python -m unittest discover -s tests -p 'test_*.py' -v
+            - name: Test modern and legacy stdio sessions
+              run: python tests/mcp_smoke.py
+            - name: Test an MCP 1.x client against the MCP 2 server
+              env:
+                  LEGACY_SPEC: ${{ matrix.legacy-spec }}
+              run: |
+                  python -m venv /tmp/kqc-legacy-client
+                  /tmp/kqc-legacy-client/bin/python -m pip install "$LEGACY_SPEC"
+                  /tmp/kqc-legacy-client/bin/python tests/mcp_smoke.py "$(command -v python)" mcp-stdio-server.py
+
+    docker:
+        name: Docker stdio
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+            - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+              with:
+                  python-version: '3.12'
+                  cache: pip
+            - run: python -m pip install -r requirements.txt
+            - name: Build the runtime image
+              run: docker build -t kusto-query-cli:test .
+            - name: Check Azure CLI and dependencies
+              run: |
+                  docker run --rm kusto-query-cli:test az version
+                  docker run --rm kusto-query-cli:test python -m pip check
+            - name: Test the container over stdio
+              run: python tests/mcp_smoke.py docker run --rm -i -e MCP_LOG_LEVEL=ERROR kusto-query-cli:test python mcp-stdio-server.py
