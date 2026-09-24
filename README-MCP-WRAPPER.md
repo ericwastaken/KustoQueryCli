@@ -156,7 +156,7 @@ All responses follow this structure:
         "execution_time_ms": 123,
         "authenticated": true,
         "request_id": "uuid",
-        "wrapper_version": "1.2.0",
+        "wrapper_version": "1.2.1",
         "protocol_version": "1.0"
     }
 }

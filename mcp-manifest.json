@@ -1,7 +1,7 @@
 {
   "name": "KustoQueryCli MCP Wrapper",
   "description": "A formal MCP wrapper for executing Kusto queries via the Azure CLI.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "protocol_version": "1.0",
   "transport": "stdin/stdout",
   "authentication_requirements": {
