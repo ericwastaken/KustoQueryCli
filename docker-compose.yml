@@ -1,7 +1,6 @@
 services:
   kusto-query-cli:
-    build: .
-    image: kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}
+    image: ${KQC_RUNTIME_IMAGE:-${KQC_IMAGE:-kusto-query-cli:${KUSTO_QUERY_CLI_VERSION}}}
     volumes:
       - type: bind
         source: ./queries

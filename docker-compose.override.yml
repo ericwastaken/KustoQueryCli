@@ -1,0 +1,5 @@
+# Compose includes this file for direct developer commands such as compose build.
+# Launchers select only docker-compose.yml after explicitly acquiring an image.
+services:
+  kusto-query-cli:
+    build: .

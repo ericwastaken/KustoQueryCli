@@ -10,12 +10,12 @@ Starts the local MCP stdio server (or Docker wrapper) and performs:
 Prints the server responses as pretty JSON, then exits.
 
 Usage examples:
-  python tests/test-mcp-stdio-server-query.py \
+  python tests/manual/test-mcp-stdio-server-query.py \
     --cluster-url https://CLUSTER.kusto.windows.net \
     --database MyDb \
     --query "MyTable | take 5"
 
-  python tests/test-mcp-stdio-server-query.py \
+  python tests/manual/test-mcp-stdio-server-query.py \
     --cluster-url https://CLUSTER.kusto.windows.net \
     --database MyDb \
     --query "MyTable | take 5" \
@@ -32,9 +32,9 @@ from typing import Any, Dict, Optional
 import select
 
 
-# Project root (one level up from this file's directory: ./tests)
+# Project root is two levels above tests/manual.
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(TESTS_DIR)
+ROOT = os.path.dirname(os.path.dirname(TESTS_DIR))
 
 
 def write_frame(proc: subprocess.Popen, obj: dict) -> None:

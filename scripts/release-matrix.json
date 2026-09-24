@@ -1,0 +1,10 @@
+{
+    "python": [
+        {"python": "3.12", "mcp": "mcp==2.2.0", "legacy": "mcp==1.26.0"},
+        {"python": "3.13", "mcp": "mcp>=2.2.0,<3", "legacy": "mcp>=1.26.0,<2"}
+    ],
+    "docker": [
+        {"platform": "linux/amd64", "runner": "ubuntu-24.04"},
+        {"platform": "linux/arm64", "runner": "ubuntu-24.04-arm"}
+    ]
+}

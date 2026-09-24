@@ -1,43 +1,32 @@
 import importlib.util
 import os
 import pathlib
-import sys
 import tempfile
 import time
-import types
 import unittest
-from unittest.mock import patch
 
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-WRAPPER_PATH = ROOT / "mcp-wrapper.py"
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def load_wrapper_module():
-    fake_kusto_handler = types.ModuleType("lib.KustoHandler")
-    fake_kusto_handler.execute_adx_query = lambda **kwargs: []
+    from kusto_query_cli.core import auth, proxy
+    from kusto_query_cli.mcp import actions
+    importlib.reload(auth)
+    importlib.reload(proxy)
+    return importlib.reload(actions)
 
-    fake_azure_helper = types.ModuleType("lib.AzureCliHelper")
-    fake_azure_helper.is_azure_cli_installed = lambda *_args, **_kwargs: True
-
-    spec = importlib.util.spec_from_file_location("kqc_wrapper_test", WRAPPER_PATH)
-    module = importlib.util.module_from_spec(spec)
-    assert spec is not None and spec.loader is not None
-    with patch.dict(sys.modules, {
-        "lib.KustoHandler": fake_kusto_handler,
-        "lib.AzureCliHelper": fake_azure_helper,
-    }):
-        spec.loader.exec_module(module)
-    return module
 
 
 class ProxyConfigTests(unittest.TestCase):
+
+
     def test_auth_status_reports_host_shared_auth_mode(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (True, {"user": "tester", "environment": "AzureCloud"})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (True, {"user": "tester", "environment": "AzureCloud"})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
             old_mode = os.environ.get("MCP_AZURE_AUTH_MODE")
             os.environ["MCP_AZURE_AUTH_MODE"] = "host_shared"
             try:
@@ -52,12 +41,13 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertEqual(env["data"]["azure_auth_mode"], "host_shared")
             self.assertIn("shared from the host", env["data"]["message"])
 
+
     def test_login_in_host_shared_mode_instructs_host_login(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (False, {})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (False, {})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
             old_mode = os.environ.get("MCP_AZURE_AUTH_MODE")
             os.environ["MCP_AZURE_AUTH_MODE"] = "host_shared"
             try:
@@ -80,12 +70,13 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertNotIn("verification_url", env["data"])
             self.assertNotIn("device_code", env["data"])
 
+
     def test_logout_in_host_shared_mode_instructs_host_logout(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (True, {})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (True, {})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
             old_mode = os.environ.get("MCP_AZURE_AUTH_MODE")
             os.environ["MCP_AZURE_AUTH_MODE"] = "host_shared"
             try:
@@ -101,13 +92,14 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertEqual(env["data"]["azure_auth_mode"], "host_shared")
             self.assertIn("az logout", env["data"]["message"])
 
+
     def test_list_subscriptions_in_host_shared_mode_requires_host_login(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (False, {})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (False, {})
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_path = pathlib.Path(tmpdir) / "mcp_subscriptions_cache.json"
-            wrapper.SUBSCRIPTIONS_CACHE_FILE = str(cache_path)
+            wrapper.auth.SUBSCRIPTIONS_CACHE_FILE = str(cache_path)
             cache_path.write_text(
                 '{"subscriptions":[{"id":"11111111-1111-1111-1111-111111111111","name":"Test","tenant_id":"22222222-2222-2222-2222-222222222222","state":"Enabled"}]}',
                 encoding="utf-8",
@@ -131,12 +123,13 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertIn("shared from the host", env["data"]["message"])
             self.assertEqual(len(env["data"]["subscriptions"]), 1)
 
+
     def test_auth_status_includes_proxy_config(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (True, {"user": "tester", "environment": "AzureCloud"})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (True, {"user": "tester", "environment": "AzureCloud"})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
 
             wrapper.handle_proxy_config(
                 {"socks5_proxy": "proxy.internal:1080", "socks5_dns": True},
@@ -149,14 +142,16 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertEqual(env["data"]["proxy_config"]["socks5_proxy"], "proxy.internal:1080")
             self.assertIs(env["data"]["proxy_config"]["socks5_dns"], True)
 
+
     def test_proxy_config_persists_for_subsequent_queries(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (True, {})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (True, {})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
 
             captured = {}
+
 
             def fake_execute_adx_query(**kwargs):
                 captured.update(kwargs)
@@ -179,10 +174,11 @@ class ProxyConfigTests(unittest.TestCase):
                 },
             )
 
+            proxy_path = wrapper.proxy.PROXY_CONFIG_FILE
             reloaded = load_wrapper_module()
-            reloaded.PROXY_CONFIG_FILE = wrapper.PROXY_CONFIG_FILE
-            reloaded.is_azure_cli_installed = lambda _: True
-            reloaded.is_authenticated = lambda: (True, {})
+            reloaded.proxy.PROXY_CONFIG_FILE = proxy_path
+            reloaded.auth.is_azure_cli_installed = lambda _: True
+            reloaded.auth.is_authenticated = lambda: (True, {})
             reloaded.execute_adx_query = fake_execute_adx_query
 
             query_env = reloaded.handle_query(
@@ -198,14 +194,16 @@ class ProxyConfigTests(unittest.TestCase):
             self.assertEqual(captured["socks5_proxy"], "proxy.internal:1080")
             self.assertIs(captured["socks5_dns"], True)
 
+
     def test_proxy_config_clear_removes_persisted_proxy(self):
         wrapper = load_wrapper_module()
-        wrapper.is_azure_cli_installed = lambda _: True
-        wrapper.is_authenticated = lambda: (True, {})
+        wrapper.auth.is_azure_cli_installed = lambda _: True
+        wrapper.auth.is_authenticated = lambda: (True, {})
         with tempfile.TemporaryDirectory() as tmpdir:
-            wrapper.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
+            wrapper.proxy.PROXY_CONFIG_FILE = str(pathlib.Path(tmpdir) / "mcp_proxy_config.json")
 
             calls = []
+
 
             def fake_execute_adx_query(**kwargs):
                 calls.append(kwargs)
@@ -231,7 +229,7 @@ class ProxyConfigTests(unittest.TestCase):
                     "socks5_dns": False,
                 },
             )
-            self.assertFalse(pathlib.Path(wrapper.PROXY_CONFIG_FILE).exists())
+            self.assertFalse(pathlib.Path(wrapper.proxy.PROXY_CONFIG_FILE).exists())
 
             query_env = wrapper.handle_query(
                 {

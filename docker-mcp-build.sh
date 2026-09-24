@@ -9,6 +9,12 @@ set -e
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 cd "$SCRIPT_DIR"
 
+# This entry point always builds locally. Launchers handle external images.
+if [ -n "${KQC_IMAGE:-}" ]; then
+  echo "Error: docker-mcp-build.sh builds locally. Unset KQC_IMAGE first, or use a Docker launcher to run the selected image." >&2
+  exit 1
+fi
+
 # Parse args
 FORCE_REBUILD=0
 PASSTHRU=()
@@ -46,14 +52,6 @@ image_exists() {
   docker image inspect "$IMAGE_TAG" > /dev/null 2>&1
 }
 
-# Remove existing image if --force is specified
-if [ "$FORCE_REBUILD" -eq 1 ] && image_exists; then
-  echo "--force specified: removing existing image $IMAGE_TAG before rebuild..." >&2
-  if ! docker rmi -f "$IMAGE_TAG" >/dev/null 2>&1; then
-    echo "Warning: Failed to remove existing image $IMAGE_TAG (it may be in use). Proceeding with rebuild." >&2
-  fi
-fi
-
 # Build if image doesn't exist, or always build when forced
 if [ "$FORCE_REBUILD" -eq 1 ] || ! image_exists; then
   if [ "$FORCE_REBUILD" -eq 1 ]; then
@@ -61,7 +59,7 @@ if [ "$FORCE_REBUILD" -eq 1 ] || ! image_exists; then
   else
     echo "Image $IMAGE_TAG not found. Building now..." >&2
   fi
-  if ! docker build -t "$IMAGE_TAG" .; then
+  if ! docker build -t "$IMAGE_TAG" . >&2; then
     echo "Error: Failed to build $IMAGE_TAG." >&2
     exit 1
   fi

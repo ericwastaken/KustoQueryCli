@@ -1,6 +1,6 @@
 """Exercise a real stdio server with either MCP 1.x or 2.x installed on the client.
 
-Usage: python tests/mcp_smoke.py [server command and arguments...]
+Usage: python tests/integration/mcp_smoke.py [server command and arguments...]
 No live Azure login or query is performed.
 """
 
@@ -15,7 +15,7 @@ import tempfile
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 SDK_MAJOR = int(version("mcp").split(".")[0])
 EXPECTED_VERSION = (ROOT / "mcp-wrapper-version").read_text().strip()
 

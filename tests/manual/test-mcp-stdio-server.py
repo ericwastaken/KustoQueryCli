@@ -13,7 +13,7 @@ import select
 # - Can target either the local server (python mcp-stdio-server.py) or Docker wrapper (./docker-mcp.sh)
 
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def write_frame(proc: subprocess.Popen, obj: dict) -> None:
@@ -51,6 +51,7 @@ def pretty(title: str, payload: dict | None) -> None:
         print("<no response>")
     else:
         print(json.dumps(payload, indent=2))
+
 
 def run_sequence(
     server: str,
