@@ -60,7 +60,7 @@ def pretty(title: str, payload: dict | None) -> None:
 def run(subscription_id: str, use_docker: bool) -> int:
     # Select command to start the MCP stdio server
     if use_docker:
-        cmd = [os.path.join(ROOT, "docker-mcp.sh")]
+        cmd = [os.path.join(ROOT, "docker/mcp.sh")]
     else:
         cmd = [sys.executable, os.path.join(ROOT, "mcp-stdio-server.py")]
 
@@ -153,7 +153,7 @@ def main() -> int:
     parser.add_argument(
         "--docker",
         action="store_true",
-        help="Start server via ./docker-mcp.sh instead of local Python",
+        help="Start server via ./docker/mcp.sh instead of local Python",
     )
     args = parser.parse_args()
 

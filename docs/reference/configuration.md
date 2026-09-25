@@ -2,7 +2,7 @@
 
 Set environment variables in the process launching the application, or in the MCP
 client's per-server environment configuration. A native Python invocation does
-not automatically load the repository `.env` file. Docker MCP launchers read the
+not automatically load the `docker/.env` file. Docker MCP launchers read the
 logging fields noted below from that file when not already set in the environment.
 
 | Setting | Scope and meaning |
@@ -18,9 +18,9 @@ logging fields noted below from that file when not already set in the environmen
 | `KQC_RELEASE_PYTHON` | Python interpreter for the release-preparation launcher |
 | `KQC_PYTHON_312`, `KQC_PYTHON_313` | Explicit interpreters for the corresponding release-check matrix rows |
 
-`MCP_LOG_LEVEL` and `MCP_LOG_PAYLOADS` are the Docker MCP launcher's `.env` fallbacks.
+`MCP_LOG_LEVEL` and `MCP_LOG_PAYLOADS` are the Docker MCP launcher's `docker/.env` fallbacks.
 Set other selections explicitly in the environment. Release-interpreter details
-are in [RELEASING.md](../../RELEASING.md).
+are in [docs/development/releases.md](../development/releases.md).
 
 MCP launcher options are `--share-host-azure-state` and local-build `--force`.
 The CLI Docker launcher accepts leading `--force` for a local rebuild. Image

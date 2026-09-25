@@ -19,8 +19,8 @@ if [ -n "${KQC_IMAGE:-}" ]; then
     printf '%s\n' "$KQC_IMAGE"
 else
     if [ "$FORCE_FLAG" = "--force" ]; then
-        "$ROOT/docker-mcp-build.sh" --force
+        "$ROOT/docker/build.sh" --force
     else
-        "$ROOT/docker-mcp-build.sh"
+        "$ROOT/docker/build.sh"
     fi
 fi

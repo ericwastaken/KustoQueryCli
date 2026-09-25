@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- Consolidate Docker tooling under `docker/`, MCP assets inside the package, and detailed guides under `docs/`; document host launcher path migration.
+
 - Reorganize documentation around MCP, CLI, container consumption, development, and release tasks.
 - Extract shared Python services and separate CLI, MCP transport, and one-shot adapters into `kusto_query_cli`.
 - Preserve root launch commands and legacy `lib` imports while moving implementation into the package.

@@ -45,7 +45,7 @@ runner creates isolated dependency environments, builds local images, checks
 resolved dependencies, and tests modern and legacy clients. It writes logs under
 `.release/`. Missing runtimes or failed checks must be reported, not silently
 skipped. Runtime overrides and platform prerequisites are in
-[RELEASING.md](../../RELEASING.md).
+[docs/development/releases.md](releases.md).
 
 For documentation-only changes, check relative links, examples, and consistency
 with code. A full Docker build is unnecessary. For entry-point or package moves,

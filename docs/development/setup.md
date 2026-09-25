@@ -25,7 +25,7 @@ Choose the guide for your change:
 - [Python](python.md): CLI, MCP, action handlers, and regression coverage.
 - [Containers](containers.md): build context, image selection, launchers.
 - [Testing](testing.md): automated checks and manual integration boundaries.
-- [Releases](../../RELEASING.md): requested version preparation and validation.
+- [Releases](releases.md): requested version preparation and validation.
 
-The root launchers are supported entry points. The project runs from a checkout;
+The root Python launchers and `docker/` launchers are supported entry points. The project runs from a checkout;
 no package publishing or editable-install step is required for development.

@@ -18,10 +18,12 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the app (includes entrypoint.sh)
+# Copy runtime files from the allowlisted repository context
 COPY . .
 
-# Ensure entrypoint script is executable
+COPY docker/entrypoint.sh /usr/src/app/entrypoint.sh
+
+# Keep the container entrypoint path stable for existing callers
 RUN chmod +x /usr/src/app/entrypoint.sh
 
 # Set the entrypoint script as the entry point for the container

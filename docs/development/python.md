@@ -10,7 +10,7 @@ root launchers thin; edit the responsible package module instead.
 | Login, auth mode, subscription state | `kusto_query_cli/core/auth.py` and MCP actions | Mocked auth/state regressions |
 | Proxy behavior | `kusto_query_cli/core/proxy.py`, query service, and actions | Persist/load/clear behavior and environment restoration |
 | JSON representation | `kusto_query_cli/core/serialization.py` | Dates, UUIDs, pandas/NumPy values, and envelope results |
-| MCP tools and action behavior | `kusto_query_cli/mcp/` and `schemas/` | Schema validation, tool results, modern/legacy smoke tests |
+| MCP tools and action behavior | `kusto_query_cli/mcp/` and `kusto_query_cli/assets/schemas/` | Schema validation, tool results, modern/legacy smoke tests |
 
 Match existing style, leave two blank lines above Python function and method
 definitions, and use ordinary imports from `kusto_query_cli`. Shared services

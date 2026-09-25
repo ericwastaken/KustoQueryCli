@@ -21,7 +21,7 @@ existing compatible application image:
 
 ```bash
 export KQC_IMAGE='ghcr.io/ericwastaken/kustoquerycli:2.0.0'
-./docker-run.sh python k2json.py --query '<table> | take 10' --database '<database>' --adxUrl 'https://<cluster>'
+./docker/cli.sh python k2json.py --query '<table> | take 10' --database '<database>' --adxUrl 'https://<cluster>'
 ```
 
 A digest reference such as `<registry>/<owner>/<image>@sha256:<digest>` selects
@@ -36,7 +36,7 @@ For an MCP client with per-server environment configuration:
 {
     "mcpServers": {
         "kusto-query": {
-            "command": "/absolute/path/to/KustoQueryCli/docker-mcp.sh",
+            "command": "/absolute/path/to/KustoQueryCli/docker/mcp.sh",
             "env": {
                 "KQC_IMAGE": "ghcr.io/ericwastaken/kustoquerycli:2.0.0"
             }
@@ -60,7 +60,7 @@ Unset `KQC_IMAGE` before using build helpers or `--force`:
 
 ```bash
 unset KQC_IMAGE
-./docker-mcp-build.sh --force
+./docker/build.sh --force
 ```
 
 The explicit build helper rejects `KQC_IMAGE`, as do launcher `--force` requests

@@ -11,7 +11,7 @@ Clone the repository and start Docker:
 ```bash
 git clone https://github.com/ericwastaken/KustoQueryCli.git
 cd KustoQueryCli
-./docker-mcp-build.sh
+./docker/build.sh
 ```
 
 The build step is optional: the launcher builds the local image if it is absent.
@@ -25,7 +25,7 @@ configuration. Replace the path with your actual checkout location:
 {
     "mcpServers": {
         "kusto-query": {
-            "command": "/absolute/path/to/KustoQueryCli/docker-mcp.sh"
+            "command": "/absolute/path/to/KustoQueryCli/docker/mcp.sh"
         }
     }
 }
@@ -36,8 +36,8 @@ host Azure CLI login, authenticate on the host with `az login` and add
 `"args": ["--share-host-azure-state"]` to the server entry. See
 [Authentication](authentication.md) for the differences.
 
-Windows CMD launchers are also provided: `docker-mcp-build.bat` and
-`docker-mcp.bat`. Configure the client to invoke the launcher according to that
+Windows CMD launchers are also provided: `docker/build.bat` and
+`docker/mcp.bat`. Configure the client to invoke the launcher according to that
 client's Windows command rules. Use absolute paths and escape backslashes in JSON.
 
 ## Native Python
@@ -96,5 +96,5 @@ Inspect the tool's error status before treating the result as data. Use `MANIFES
 `GET_SCHEMA`, and `GET_EXAMPLE` to inspect the contract. See the
 [MCP reference](../reference/mcp.md) for all tools.
 
-After changing local code, rebuild using `./docker-mcp-build.sh --force` and restart
+After changing local code, rebuild using `./docker/build.sh --force` and restart
 the MCP session. MCP stdout is protocol-only; diagnostics appear on stderr.

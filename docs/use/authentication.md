@@ -10,7 +10,7 @@ identify the cluster URL or database for a query.
 | Native MCP with recommended `host_shared` policy | Host user's Azure CLI state | `az login` on the host |
 | Docker MCP, default | Volume `kusto-query-cli-mcp-azure-state` at `/root/.azure` | MCP `LOGIN`, complete device flow, then verify `AUTH_STATUS` |
 | Docker MCP, host-shared | Host `~/.azure` mounted at `/root/.azure` | `az login` on the host; launch with `--share-host-azure-state` |
-| Docker CLI | Compose volume `kusto-query-cli-azure-state` | `./docker-run.sh az login` |
+| Docker CLI | Compose volume `kusto-query-cli-azure-state` | `./docker/cli.sh az login` |
 
 Compose may prefix its volume name with the project name. CLI and MCP defaults
 are intentionally separate; logging into one does not automatically log into the

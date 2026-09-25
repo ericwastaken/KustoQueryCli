@@ -14,7 +14,7 @@ task: using the application does not require changing it or preparing a release.
 | Change Python or MCP behavior | [Setup](docs/development/setup.md), [architecture](docs/development/architecture.md), [Python development](docs/development/python.md) |
 | Change Docker builds or launchers | [Container development](docs/development/containers.md) |
 | Validate changes | [Testing](docs/development/testing.md) |
-| Prepare a requested release | [RELEASING.md](RELEASING.md) |
+| Prepare a requested release | [docs/development/releases.md](docs/development/releases.md) |
 
 Use these canonical guides rather than duplicating instructions in new agent-only
 how-to documents. Human and agent developers use the same implementation and checks.
@@ -36,8 +36,9 @@ how-to documents. Human and agent developers use the same implementation and che
 
 ## Development invariants
 
-- Keep root launch paths and compatibility imports stable. Put behavior in
-    `kusto_query_cli`; use ordinary imports instead of loading executable scripts.
+- Keep native root Python launchers and compatibility imports stable. Docker
+    launchers live under `docker/`; document path migrations in the architecture guide.
+    Put behavior in `kusto_query_cli`; use ordinary imports instead of loading executable scripts.
 - Reserve MCP stdout for protocol messages. Diagnostics go to stderr; Docker MCP
     uses `-i` without `-t`.
 - Preserve explicit JSON Schema validation and tool-error results. Successful

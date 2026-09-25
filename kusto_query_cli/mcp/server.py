@@ -14,9 +14,9 @@ from mcp.server import Server, ServerRequestContext
 from kusto_query_cli.mcp import actions as kqc_wrapper
 from kusto_query_cli.core.proxy import _to_bool
 from kusto_query_cli.core.serialization import _json_sanitize
-from kusto_query_cli.resources import ROOT
+from kusto_query_cli.resources import RESOURCE_ROOT
 
-_script_dir = str(ROOT)
+_script_dir = str(RESOURCE_ROOT)
 
 
 # ---- Logging setup ----

@@ -1,7 +1,7 @@
 @echo off
 setlocal DisableDelayedExpansion
 rem Launch the CLI runtime using a local build or explicit KQC_IMAGE.
-pushd "%~dp0" >nul
+pushd "%~dp0.." >nul
 if errorlevel 1 exit /b 1
 set "MODE=run"
 set "FORCE_FLAG="
@@ -23,13 +23,13 @@ goto collect_args
 :args_done
 if "%MODE%"=="down" goto compose_down
 set "KQC_RESOLVED_IMAGE="
-call "%~dp0scripts\docker\acquire-image.bat" %FORCE_FLAG%
+call "%~dp0lib\acquire-image.bat" %FORCE_FLAG%
 if errorlevel 1 goto failed
 set "KQC_RUNTIME_IMAGE=%KQC_RESOLVED_IMAGE%"
-docker compose --project-directory "%~dp0." -f "%~dp0docker-compose.yml" run --rm --pull never kusto-query-cli %PASSTHRU_ARGS%
+docker compose --project-directory "%~dp0.." --env-file "%~dp0.env" -f "%~dp0compose.yaml" run --rm --pull never kusto-query-cli %PASSTHRU_ARGS%
 goto finish
 :compose_down
-docker compose --project-directory "%~dp0." -f "%~dp0docker-compose.yml" down %PASSTHRU_ARGS%
+docker compose --project-directory "%~dp0.." --env-file "%~dp0.env" -f "%~dp0compose.yaml" down %PASSTHRU_ARGS%
 :finish
 set "EXITCODE=%ERRORLEVEL%"
 popd >nul

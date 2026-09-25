@@ -2,9 +2,10 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION_FILE = ROOT / "mcp-wrapper-version"
-PROTOCOL_VERSION_FILE = ROOT / "mcp-protocol-version"
-MANIFEST_FILE = ROOT / "mcp-manifest.json"
+RESOURCE_ROOT = Path(__file__).resolve().parent / "assets"
+VERSION_FILE = RESOURCE_ROOT / "mcp-wrapper-version"
+PROTOCOL_VERSION_FILE = RESOURCE_ROOT / "mcp-protocol-version"
+MANIFEST_FILE = RESOURCE_ROOT / "mcp-manifest.json"
 
 
 def load_version():

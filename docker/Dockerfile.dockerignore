@@ -1,0 +1,16 @@
+# Build from the repository root with -f docker/Dockerfile.
+# Only runtime code, package assets, and the container entrypoint are sent.
+*
+!k2csv.py
+!k2json.py
+!mcp-wrapper.py
+!mcp-stdio-server.py
+!requirements.txt
+!lib/
+!kusto_query_cli/
+!docker/
+docker/*
+!docker/entrypoint.sh
+!LICENSE
+**/__pycache__/
+**/*.pyc

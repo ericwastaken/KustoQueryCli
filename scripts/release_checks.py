@@ -95,12 +95,12 @@ def find_python(version):
 
 
 def check_metadata(root):
-    version = (root / "mcp-wrapper-version").read_text().strip()
-    if json.loads((root / "mcp-manifest.json").read_text())["version"] != version:
-        raise CheckFailure("Manifest version disagrees with mcp-wrapper-version.")
-    if f"KUSTO_QUERY_CLI_VERSION={version}" not in (root / ".env").read_text().splitlines():
-        raise CheckFailure("Default Docker version disagrees with mcp-wrapper-version.")
-    for path in (root / "examples").glob("*.json"):
+    version = (root / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip()
+    if json.loads((root / "kusto_query_cli/assets/mcp-manifest.json").read_text())["version"] != version:
+        raise CheckFailure("Manifest version disagrees with kusto_query_cli/assets/mcp-wrapper-version.")
+    if f"KUSTO_QUERY_CLI_VERSION={version}" not in (root / "docker/.env").read_text().splitlines():
+        raise CheckFailure("Default Docker version disagrees with kusto_query_cli/assets/mcp-wrapper-version.")
+    for path in (root / "kusto_query_cli/assets/examples").glob("*.json"):
         data = json.loads(path.read_text())
         actual = data.get("metadata", {}).get("wrapper_version")
         if actual is not None and actual != version:
@@ -139,7 +139,7 @@ def check_docker(runner, platform, interpreter, existing_image=None):
         runner.run(f"docker-{architecture}-pull", ["docker", "pull", "--platform", platform, tag])
     else:
         runner.run(f"docker-{architecture}-build", [
-            "docker", "buildx", "build", "--pull", "--load", "--platform", platform, "-t", tag, ".",
+            "docker", "buildx", "build", "--pull", "--load", "--platform", platform, "-f", "docker/Dockerfile", "-t", tag, ".",
         ])
     image = json.loads(runner.run(f"docker-{architecture}-inspect", ["docker", "image", "inspect", tag]))[0]
     if f"{image['Os']}/{image['Architecture']}" != platform:
@@ -154,12 +154,12 @@ def check_docker(runner, platform, interpreter, existing_image=None):
         runner.run(f"docker-{architecture}-{entrypoint}-help", [*command, "python", entrypoint, "--help"], timeout=60)
     # Exercise the actual one-shot launcher without login or cloud requests.
     runner.run(f"docker-{architecture}-wrapper", [*command, "python", "-c", (
-        "import json, pathlib, subprocess, sys; "
+        "import json, subprocess, sys; from kusto_query_cli.resources import load_version; "
         "result = subprocess.run([sys.executable, 'mcp-wrapper.py'], input='{}', "
         "text=True, capture_output=True, check=True); "
         "data = json.loads(result.stdout); "
         "assert data['error']['code'] == 'UNKNOWN_ACTION', data; "
-        "assert data['metadata']['wrapper_version'] == pathlib.Path('mcp-wrapper-version').read_text().strip(); "
+        "assert data['metadata']['wrapper_version'] == load_version(); "
         "print('One-shot wrapper: passed')"
     )], timeout=60)
     with tempfile.TemporaryDirectory(prefix="kqc-docker-client-") as directory:

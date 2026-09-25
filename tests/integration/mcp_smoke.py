@@ -17,7 +17,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK_MAJOR = int(version("mcp").split(".")[0])
-EXPECTED_VERSION = (ROOT / "mcp-wrapper-version").read_text().strip()
+EXPECTED_VERSION = (ROOT / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip()
 
 
 async def check(client):

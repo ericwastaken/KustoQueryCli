@@ -1,14 +1,15 @@
 #!/bin/bash
 
-# docker-mcp.sh: Launch the MCP stdio server inside Docker.
+# docker/mcp.sh: Launch the MCP stdio server inside Docker.
 # This runs 'python mcp-stdio-server.py' in the foreground with stdio attached,
 # suitable for MCP clients that spawn a long-lived stdio process.
 
 set -e
 
-# Always execute from the directory where this script resides so relative paths work.
+# Resolve the project root independently of the caller's current directory.
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
-cd "$SCRIPT_DIR"
+ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+cd "$ROOT"
 
 ENV_FILE="$SCRIPT_DIR/.env"
 
@@ -62,7 +63,7 @@ FORCE_FLAG=""
 if [ "$FORCE_REBUILD" -eq 1 ]; then
   FORCE_FLAG="--force"
 fi
-IMAGE_TAG="$("$SCRIPT_DIR/scripts/docker/acquire-image.sh" "$FORCE_FLAG")"
+IMAGE_TAG="$("$SCRIPT_DIR/lib/acquire-image.sh" "$FORCE_FLAG")"
 
 # Prepare optional --name flag only if MCP_CONTAINER_NAME is explicitly set
 NAME_FLAG=()

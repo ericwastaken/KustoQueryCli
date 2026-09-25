@@ -33,10 +33,10 @@ The wrapper does not implement MCP initialization or JSON-RPC framing.
 Supported actions are `MANIFEST`, `AUTH_STATUS`, `LOGIN`, `LOGOUT`,
 `LIST_SUBSCRIPTIONS`, `PROXY_CONFIG`, and `QUERY`. `GET_SCHEMA` and `GET_EXAMPLE`
 are MCP server tools, not wrapper actions. Canonical wrapper examples are in
-[examples/](../../examples/); schemas are in [schemas/](../../schemas/).
+[examples/](../../kusto_query_cli/assets/examples); schemas are in [schemas/](../../kusto_query_cli/assets/schemas).
 
 Inspect response `status` and error details before using `data`. The response
-includes application/protocol metadata; see [mcp-contract.md](../../mcp-contract.md).
+includes application/protocol metadata; see [docs/reference/action-contract.md](../reference/action-contract.md).
 Authentication and persistent proxy changes follow the shared
 [authentication](authentication.md) and [proxy](proxy.md) guidance.
 
