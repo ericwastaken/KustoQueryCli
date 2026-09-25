@@ -10,7 +10,7 @@ import select
 # Simple MCP stdio test script
 # - Sends JSON-RPC requests as ND-JSON (newline-delimited JSON)
 # - Exercises initialize -> tools/list -> tools/call flows
-# - Can target either the local server (python mcp-stdio-server.py) or Docker wrapper (./docker-mcp.sh)
+# - Can target either the local server (python mcp-stdio-server.py) or Docker wrapper (./docker/mcp.sh)
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,7 +62,7 @@ def run_sequence(
 ) -> int:
     # Select command
     if use_docker:
-        cmd = [os.path.join(ROOT, "docker-mcp.sh")]
+        cmd = [os.path.join(ROOT, "docker/mcp.sh")]
     else:
         cmd = [sys.executable, os.path.join(ROOT, "mcp-stdio-server.py")]
 
@@ -194,7 +194,7 @@ def main() -> int:
     parser.add_argument(
         "--docker",
         action="store_true",
-        help="Use ./docker-mcp.sh instead of local python mcp-stdio-server.py",
+        help="Use ./docker/mcp.sh instead of local python mcp-stdio-server.py",
     )
     parser.add_argument(
         "--login",

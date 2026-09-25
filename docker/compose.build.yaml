@@ -1,0 +1,7 @@
+# Add explicitly with -f docker/compose.build.yaml for local development builds.
+# Set --project-directory to the repository root, as the launchers do.
+services:
+  kusto-query-cli:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile

@@ -48,7 +48,7 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_catalog_and_introspection_in_both_protocol_modes(self):
-        version = (ROOT / "mcp-wrapper-version").read_text().strip()
+        version = (ROOT / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip()
         for mode in ("auto", "legacy"):
             with self.subTest(mode=mode):
                 async with Client(self.module.server, mode=mode) as client:
@@ -64,7 +64,7 @@ class MCPAdapterTests(unittest.IsolatedAsyncioTestCase):
                     ))
                     query_tool = next(tool for tool in listed.tools if tool.name == "QUERY")
                     self.assertEqual(query_tool.input_schema, schema["properties"]["params"])
-                    for path in (ROOT / "examples").glob("*.json"):
+                    for path in (ROOT / "kusto_query_cli/assets/examples").glob("*.json"):
                         example = self.assert_success(await client.call_tool("GET_EXAMPLE", {"name": path.name}))
                         self.assertEqual(example, json.loads(path.read_text()))
                         if "metadata" in example:
@@ -180,10 +180,10 @@ class ReleaseMetadataTests(unittest.TestCase):
 
 
     def test_release_metadata_is_consistent(self):
-        version = (ROOT / "mcp-wrapper-version").read_text().strip()
-        self.assertEqual(json.loads((ROOT / "mcp-manifest.json").read_text())["version"], version)
-        self.assertIn(f"KUSTO_QUERY_CLI_VERSION={version}", (ROOT / ".env").read_text())
-        for path in (ROOT / "examples").glob("*.json"):
+        version = (ROOT / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip()
+        self.assertEqual(json.loads((ROOT / "kusto_query_cli/assets/mcp-manifest.json").read_text())["version"], version)
+        self.assertIn(f"KUSTO_QUERY_CLI_VERSION={version}", (ROOT / "docker/.env").read_text())
+        for path in (ROOT / "kusto_query_cli/assets/examples").glob("*.json"):
             data = json.loads(path.read_text())
             if "metadata" in data:
                 self.assertEqual(data["metadata"]["wrapper_version"], version, str(path))

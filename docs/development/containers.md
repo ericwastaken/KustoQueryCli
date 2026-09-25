@@ -1,12 +1,14 @@
 # Change Docker builds and launchers
 
-The root Dockerfile builds one application image used by CLI, MCP, and wrapper
-consumers. The root `.dockerignore` uses an allowlist: adding runtime files requires
+The Dockerfile in `docker/` builds one application image used by CLI, MCP, and wrapper
+consumers. The `docker/Dockerfile.dockerignore` uses an allowlist: adding runtime files requires
 updating that list. Keep credentials, caches, release output, and scratch files out
 of the build context.
 
-`docker-compose.yml` is the runtime definition. The developer-only
-`docker-compose.override.yml` adds `build: .` for direct `docker compose build`.
+`docker/compose.yaml` is the runtime definition. The developer-only
+`docker/compose.build.yaml` adds the repository build context and Dockerfile.
+Direct Compose commands must supply `--project-directory . --env-file docker/.env`
+and both `-f` files from the repository root; see the local build guide.
 The CLI launcher explicitly selects the base file after acquiring an image, so
 runtime execution does not inherit the development build configuration.
 
@@ -17,7 +19,7 @@ selected reference and never silently build source. See
 
 ## Contracts to preserve
 
-- Keep root `.sh` and `.bat` entry points consistent. Bash launchers must work with
+- Keep `docker/` shell and Windows entry points consistent. Bash launchers must work with
     macOS Bash 3.2. Resolve internal paths from the launcher location.
 - MCP uses `docker run --rm -i` without a TTY. Protocol stdout must stay clean;
     launch/build diagnostics belong on stderr.
@@ -38,4 +40,4 @@ digests.
 
 The release workflow uses the shared matrix and validates uploaded architecture
 images by digest before assembling the public multi-platform image and GitHub
-release. See [Release workflow](../../RELEASING.md). Do not introduce a second implementation of release checks in CI.
+release. See [Release workflow](releases.md). Do not introduce a second implementation of release checks in CI.

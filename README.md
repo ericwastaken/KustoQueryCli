@@ -15,7 +15,7 @@ contract-discovery tools. Both use Azure CLI authentication.
 | Use the one-shot JSON action interface | [Use the wrapper](docs/use/wrapper.md) |
 | Change Python behavior | [Development setup](docs/development/setup.md), [Python development](docs/development/python.md) |
 | Change Docker builds or launchers | [Container development](docs/development/containers.md) |
-| Prepare a release | [Release workflow](RELEASING.md) |
+| Prepare a release | [Release workflow](docs/development/releases.md) |
 | Work on or consume this project as an agent | [Agent instructions](AGENTS.md) |
 
 Native use requires Python 3.12+ and Azure CLI. Docker includes both. You need an
@@ -36,5 +36,17 @@ Linux AMD64 and ARM64 images to GHCR. See the [image guide](docs/containers/use-
 - [Architecture](docs/development/architecture.md) and [testing](docs/development/testing.md)
 
 Application changes are recorded in [CHANGELOG.md](CHANGELOG.md). Canonical action
-contracts and payloads remain in [schemas/](schemas/), [examples/](examples/), and
-[mcp-contract.md](mcp-contract.md).
+contracts and payloads remain in [schemas/](kusto_query_cli/assets/schemas), [examples/](kusto_query_cli/assets/examples), and
+[docs/reference/action-contract.md](docs/reference/action-contract.md).
+
+## Repository layout
+
+- `kusto_query_cli/`: Python implementation and runtime assets.
+- `docker/`: image builds, Compose definitions, and CLI/MCP launchers.
+- `docs/`: consumer, developer, and reference guides.
+- `scripts/`: release preparation, validation, and publishing.
+- `tests/`: unit, protocol integration, and manual Azure tests.
+- Root Python scripts and `lib/`: compatibility entry points and imports.
+
+Docker launcher paths have moved. See the [path migration table](docs/development/architecture.md#root-layout-and-path-migration)
+when updating an existing checkout or MCP client configuration.

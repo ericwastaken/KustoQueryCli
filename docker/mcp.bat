@@ -1,11 +1,11 @@
 @echo off
 setlocal DisableDelayedExpansion
 
-rem Always execute from the directory where this script resides so relative paths work.
-pushd "%~dp0" >nul
+rem Execute from the project root so image acquisition and paths are stable.
+pushd "%~dp0.." >nul
 if errorlevel 1 exit /b 1
 
-:::: docker-mcp.bat: Launch the MCP stdio server inside Docker on Windows.
+:::: docker/mcp.bat: Launch the MCP stdio server inside Docker on Windows.
 :::: Runs 'python mcp-stdio-server.py' with stdio attached for MCP clients.
 
 set ENV_FILE=%~dp0.env
@@ -36,7 +36,7 @@ rem Acquire the image independently of MCP execution and auth state.
 set FORCE_FLAG=
 if defined FORCE set FORCE_FLAG=--force
 set "KQC_RESOLVED_IMAGE="
-call "%~dp0scripts\docker\acquire-image.bat" %FORCE_FLAG%
+call "%~dp0lib\acquire-image.bat" %FORCE_FLAG%
 if errorlevel 1 (
   popd >nul
   exit /b 1

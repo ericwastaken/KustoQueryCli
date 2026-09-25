@@ -96,7 +96,7 @@ def publish_image(tag, platform, output):
     if existing is None:
         runner.run("build", [
             "docker", "buildx", "build", "--pull", "--load", "--provenance=false",
-            "--platform", platform, "--tag", f"{image}:{candidate}",
+            "--platform", platform, "--file", "docker/Dockerfile", "--tag", f"{image}:{candidate}",
             "--label", f"org.opencontainers.image.source=https://github.com/{repository}",
             "--label", f"org.opencontainers.image.revision={commit}",
             "--label", f"org.opencontainers.image.version={version}", ".",
@@ -110,7 +110,8 @@ def publish_image(tag, platform, output):
     inspected = json.loads(command(["docker", "image", "inspect", result["image_id"]]).stdout)[0]
     verify_labels(inspected, version, commit)
     actual = command(["docker", "run", "--rm", "--platform", platform,
-                      result["image_id"], "cat", "mcp-wrapper-version"]).stdout.strip()
+                      result["image_id"], "python", "-c",
+                      "from kusto_query_cli.resources import load_version; print(load_version())"]).stdout.strip()
     if actual != str(version):
         raise CheckFailure("Image runtime version disagrees with release tag.")
     write_json(output / "image-report.json", {

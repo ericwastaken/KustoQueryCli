@@ -79,15 +79,15 @@ class PreparationTests(unittest.TestCase):
         self.run_git("config", "user.name", "Release Tests")
         self.run_git("config", "user.email", "release-tests@example.invalid")
         files = {
-            "mcp-wrapper-version": "1.3.0\n",
-            "mcp-manifest.json": '{"version": "1.3.0"}\n',
-            ".env": "KUSTO_QUERY_CLI_VERSION=1.3.0\n",
+            "kusto_query_cli/assets/mcp-wrapper-version": "1.3.0\n",
+            "kusto_query_cli/assets/mcp-manifest.json": '{"version": "1.3.0"}\n',
+            "docker/.env": "KUSTO_QUERY_CLI_VERSION=1.3.0\n",
             ".gitignore": "/.release/\n",
-            ".dockerignore": "*\n!lib/\n!mcp-wrapper-version\n",
-            "README-MCP-WRAPPER.md": 'Example: "wrapper_version": "1.3.0"\n',
-            "README-MCP-SERVER.md": "docker run kusto-query-cli:1.3.0\n",
+            "docker/Dockerfile.dockerignore": "*\n!lib/\n!kusto_query_cli/assets/mcp-wrapper-version\n",
+            "docs/use/wrapper.md": 'Example: "wrapper_version": "1.3.0"\n',
+            "docs/use/mcp.md": "docker run kusto-query-cli:1.3.0\n",
             "CHANGELOG.md": "# Changelog\n\n## 1.3.0\n\n- Existing release.\n",
-            "examples/QUERY.success.json": '{"metadata": {"wrapper_version": "1.3.0"}}\n',
+            "kusto_query_cli/assets/examples/QUERY.success.json": '{"metadata": {"wrapper_version": "1.3.0"}}\n',
             "scripts/release-matrix.json": (SCRIPTS / "release-matrix.json").read_text(),
         }
         for name, data in files.items():
@@ -143,7 +143,7 @@ class PreparationTests(unittest.TestCase):
         self.assertEqual(self.python_checks.call_count, 2)
         self.assertEqual(self.docker_checks.call_count, 2)
         self.assertEqual(self.conflicts.call_count, 2)
-        self.assertEqual(json.loads((self.root / "examples/QUERY.success.json").read_text())["metadata"]["wrapper_version"], "1.3.1")
+        self.assertEqual(json.loads((self.root / "kusto_query_cli/assets/examples/QUERY.success.json").read_text())["metadata"]["wrapper_version"], "1.3.1")
 
 
     def test_failure_preserves_edits_and_rerun_resumes(self):
@@ -193,7 +193,7 @@ class PreparationTests(unittest.TestCase):
 
 
     def test_source_mutation_during_checks_prevents_success(self):
-        self.python_checks.side_effect = lambda *args: (self.root / "README-MCP-SERVER.md").write_text("changed during checks\n")
+        self.python_checks.side_effect = lambda *args: (self.root / "docs/use/mcp.md").write_text("changed during checks\n")
         self.assertEqual(self.prepare(), 1)
         self.assertIn("Source changed", self.latest_report()["error"])
 
@@ -216,7 +216,7 @@ class PreparationTests(unittest.TestCase):
 
 
         def interrupted_replace(path, target):
-            if target == self.root / "mcp-manifest.json":
+            if target == self.root / "kusto_query_cli/assets/mcp-manifest.json":
                 raise KeyboardInterrupt
             return real_replace(path, target)
 

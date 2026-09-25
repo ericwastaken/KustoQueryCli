@@ -19,7 +19,7 @@ endlocal & set "KQC_RESOLVED_IMAGE=%KQC_IMAGE%" & exit /b 0
 
 :local_image
 set "KQC_BUILT_IMAGE="
-call "%~dp0..\..\docker-mcp-build.bat" %~1 >nul
+call "%~dp0..\build.bat" %~1 >nul
 if errorlevel 1 exit /b 1
 if not defined KQC_BUILT_IMAGE exit /b 1
 endlocal & set "KQC_RESOLVED_IMAGE=%KQC_BUILT_IMAGE%" & exit /b 0

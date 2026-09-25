@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -171,12 +172,42 @@ class PythonEntrypointTests(unittest.TestCase):
                 tools = asyncio.run(server.list_tools())
                 schema = asyncio.run(server.call_tool("GET_SCHEMA", {"path": "actions/QUERY.request.schema.json"}))
                 example = asyncio.run(server.call_tool("GET_EXAMPLE", {"name": "QUERY.request.json"}))
-                self.assertEqual(resources.load_version(), (ROOT / "mcp-wrapper-version").read_text().strip())
+                self.assertEqual(resources.load_version(), (ROOT / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip())
         self.assertEqual(manifest["status"], "success")
-        self.assertEqual(manifest["data"], json.loads((ROOT / "mcp-manifest.json").read_text()))
+        self.assertEqual(manifest["data"], json.loads((ROOT / "kusto_query_cli/assets/mcp-manifest.json").read_text()))
         query_tool = next(tool for tool in tools if tool.name == "QUERY")
         self.assertEqual(query_tool.input_schema, schema["properties"]["params"])
-        self.assertEqual(example, json.loads((ROOT / "examples/QUERY.request.json").read_text()))
+        self.assertEqual(example, json.loads((ROOT / "kusto_query_cli/assets/examples/QUERY.request.json").read_text()))
+
+
+    def test_package_carries_its_own_runtime_assets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            shutil.copytree(ROOT / "kusto_query_cli", Path(directory) / "kusto_query_cli",
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            program = """
+import asyncio
+import json
+from pathlib import Path
+from unittest.mock import patch
+from kusto_query_cli import resources
+from kusto_query_cli.mcp import actions, server
+assert resources.RESOURCE_ROOT == Path.cwd() / 'kusto_query_cli/assets'
+with patch('kusto_query_cli.core.auth.is_authenticated', return_value=(False, {})):
+    manifest = actions.handle_manifest(0)
+assert manifest['status'] == 'success', manifest
+assert manifest['data']['version'] == resources.load_version()
+assert len(asyncio.run(server.list_tools())) == 9
+schema = asyncio.run(server.call_tool('GET_SCHEMA', {'path': 'actions/QUERY.request.schema.json'}))
+example = asyncio.run(server.call_tool('GET_EXAMPLE', {'name': 'QUERY.request.json'}))
+assert schema['type'] == 'object'
+assert example['action'] == 'QUERY'
+print(json.dumps({'version': resources.load_version(), 'protocol': resources.load_protocol_version()}))
+"""
+            result = subprocess.run([sys.executable, "-c", program], cwd=directory,
+                                    capture_output=True, text=True, check=True, timeout=30)
+        self.assertEqual(json.loads(result.stdout), {
+            "version": resources.load_version(), "protocol": resources.load_protocol_version(),
+        })
 
 
     def test_shared_query_restores_proxy_environment_after_success_or_failure(self):

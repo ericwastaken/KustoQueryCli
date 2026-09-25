@@ -142,3 +142,25 @@ a failed run may leave candidate or version images in GHCR before announcement.
 Use the workflow URL to inspect failures. Never delete or move a released tag to
 make a conflict disappear. Retain referenced candidate manifests because the
 multi-platform image depends on their architecture digests.
+
+### Approved v2 layout replacement and historical containers
+
+`Release maintenance` is a narrowly scoped, manual workflow for the initial
+v2.0.0 layout correction and container backfills for v1.2.1 and v1.3.0. Dispatch
+it from `main` after PR CI passes. It builds both Linux architectures, tests the
+uploaded digests, and records resolved dependencies in each release manifest.
+The 1.x builds use their original, pinned tag commits and retain their original
+release notes. Their minor aliases advance without changing `latest`.
+
+The user explicitly approved replacing the initial v2.0.0 publication with the
+reviewed layout under the same version. This is an exception to normal immutable
+release tags. The maintenance publisher accepts only the recorded original
+source/image or an exact retry of the same replacement. It archives the original
+tag as `archive/v2.0.0-initial`, retains the original release manifest as another
+asset, and preserves the original image under `previous-2.0.0-<original-commit>`.
+The new manifest records what it replaces. Cached v2.0.0 images must be pulled
+again. Later releases must use a new version and the normal Release workflow.
+
+If interrupted, rerun the same workflow run so its source SHA remains fixed.
+Successful image candidates are reused and retested. Publication is serialized
+with normal releases; unrelated tag or image changes stop recovery.

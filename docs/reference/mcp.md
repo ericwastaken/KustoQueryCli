@@ -22,9 +22,9 @@ actions. For example, call `GET_SCHEMA` with
 `{"path":"actions/QUERY.request.schema.json"}` or `GET_EXAMPLE` with
 `{"name":"QUERY.request.json"}`. Logical names stay stable across source moves.
 
-The sources of truth are [schemas/](../../schemas/), [examples/](../../examples/),
-[mcp-manifest.json](../../mcp-manifest.json), and
-[mcp-contract.md](../../mcp-contract.md). The manifest lists wrapper actions;
+The sources of truth are [schemas/](../../kusto_query_cli/assets/schemas), [examples/](../../kusto_query_cli/assets/examples),
+[kusto_query_cli/assets/mcp-manifest.json](../../kusto_query_cli/assets/mcp-manifest.json), and
+[docs/reference/action-contract.md](action-contract.md). The manifest lists wrapper actions;
 tool discovery also includes the server's introspection tools.
 
 ## Results and versions
@@ -36,10 +36,10 @@ older clients. The one-shot wrapper retains the full `status`/`error`/`data`
 envelope. The server validates tool arguments against JSON Schema.
 
 The application release is recorded in
-[mcp-wrapper-version](../../mcp-wrapper-version). The server dependency uses MCP
+[kusto_query_cli/assets/mcp-wrapper-version](../../kusto_query_cli/assets/mcp-wrapper-version). The server dependency uses MCP
 SDK 2.x as bounded in [requirements.txt](../../requirements.txt), with modern and
 legacy client compatibility checked by the test matrix.
-[mcp-protocol-version](../../mcp-protocol-version) describes this project's action
+[kusto_query_cli/assets/mcp-protocol-version](../../kusto_query_cli/assets/mcp-protocol-version) describes this project's action
 envelope; it is not the SDK major version or MCP wire protocol revision.
 
 See [Use MCP](../use/mcp.md), [Use the wrapper](../use/wrapper.md), and

@@ -22,4 +22,4 @@ not an empty successful query result. MCP returns tool data; the one-shot wrappe
 returns a status/error/data envelope. Use `MANIFEST`, `GET_SCHEMA`, and
 `GET_EXAMPLE` to compare client arguments with the current contract.
 
-For local release-check failures, follow [Release recovery](../../RELEASING.md#recovery).
+For local release-check failures, follow [Release recovery](../development/releases.md#recovery).

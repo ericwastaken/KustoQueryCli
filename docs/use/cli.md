@@ -36,14 +36,14 @@ if several are supplied, query text takes precedence over file and stdin.
 Start Docker and run from the repository root:
 
 ```bash
-./docker-run.sh az login
-./docker-run.sh python k2json.py --query '<table> | take 10' --database '<database>' --adxUrl 'https://<cluster>'
-./docker-run.sh python k2csv.py --queryFile ./queries/example.kql --database '<database>' --adxUrl 'https://<cluster>' > output.csv
+./docker/cli.sh az login
+./docker/cli.sh python k2json.py --query '<table> | take 10' --database '<database>' --adxUrl 'https://<cluster>'
+./docker/cli.sh python k2csv.py --queryFile ./queries/example.kql --database '<database>' --adxUrl 'https://<cluster>' > output.csv
 ```
 
 The launcher builds the local image if needed. For another image, see
 [Use a container image](../containers/use-image.md). On Windows CMD, use
-`docker-run.bat` and double quotes around argument values. File paths passed to
+`docker/cli.bat` and double quotes around argument values. File paths passed to
 Python inside the Linux container use Linux separators.
 
 Compose mounts the checkout's `queries/` directory at `/usr/src/app/queries`.

@@ -92,7 +92,7 @@ def repository(root):
 
 def untracked_inputs(root):
     paths = git("ls-files", "--others", "--exclude-standard", "-z", root=root).split("\0")
-    patterns = [line[1:].strip() for line in (root / ".dockerignore").read_text().splitlines() if line.startswith("!")]
+    patterns = [line[1:].strip() for line in (root / "docker/Dockerfile.dockerignore").read_text().splitlines() if line.startswith("!")]
     unsafe = []
     for path in filter(None, paths):
         if "__pycache__" in Path(path).parts or path.endswith(".pyc"):
@@ -155,17 +155,17 @@ def check_conflicts(root, repo, version, releases):
 
 def prepare_files(root, target, subjects):
     # Always derive generated metadata from HEAD, allowing interrupted runs to resume.
-    original = git("show", "HEAD:mcp-wrapper-version", root=root)
+    original = git("show", "HEAD:kusto_query_cli/assets/mcp-wrapper-version", root=root)
     changes = {}
-    names = ["mcp-wrapper-version", "mcp-manifest.json", ".env"]
-    names += [str(path.relative_to(root)) for path in sorted((root / "examples").glob("*.json"))]
+    names = ["kusto_query_cli/assets/mcp-wrapper-version", "kusto_query_cli/assets/mcp-manifest.json", "docker/.env"]
+    names += [str(path.relative_to(root)) for path in sorted((root / "kusto_query_cli/assets/examples").glob("*.json"))]
     for name in names:
         text = command(["git", "show", f"HEAD:{name}"], root).stdout
-        if name == "mcp-wrapper-version":
+        if name == "kusto_query_cli/assets/mcp-wrapper-version":
             updated = f"{target}\n"
-        elif name == "mcp-manifest.json":
+        elif name == "kusto_query_cli/assets/mcp-manifest.json":
             updated = re.sub(r'("version":\s*")[^"]+(")', lambda match: match[1] + str(target) + match[2], text, count=1)
-        elif name == ".env":
+        elif name == "docker/.env":
             updated = re.sub(r"(?m)^KUSTO_QUERY_CLI_VERSION=.*$", f"KUSTO_QUERY_CLI_VERSION={target}", text)
         else:
             updated = text.replace(f'"wrapper_version": "{original}"', f'"wrapper_version": "{target}"')
@@ -227,7 +227,7 @@ def instructions(repo, version, base_branch):
         f"After merge, update your local {base_branch} and verify its version is {version}:\n\n"
         f"    git switch {shlex.quote(base_branch)}\n"
         f"    git pull --ff-only origin {shlex.quote(base_branch)}\n"
-        f"    cat mcp-wrapper-version\n"
+        f"    cat kusto_query_cli/assets/mcp-wrapper-version\n"
         f"    ./build-for-release.sh --check-only --non-interactive --version {version} --base-branch {shlex.quote(base_branch)}\n"
         f"    git tag -a {tag} -m 'Release {tag}'\n"
         f"    git push origin {tag}\n\n"
@@ -296,8 +296,8 @@ def main(argv=None, root=ROOT):
                 published.append(Version(text))
             except CheckFailure:
                 continue
-        current = Version((root / "mcp-wrapper-version").read_text().strip())
-        original = Version(git("show", "HEAD:mcp-wrapper-version", root=root))
+        current = Version((root / "kusto_query_cli/assets/mcp-wrapper-version").read_text().strip())
+        original = Version(git("show", "HEAD:kusto_query_cli/assets/mcp-wrapper-version", root=root))
         start = f"v{original}"
         revision = f"{start}..HEAD" if start in git("tag", "--list", root=root).splitlines() else "HEAD"
         messages = git("log", "--format=%B", revision, root=root)
